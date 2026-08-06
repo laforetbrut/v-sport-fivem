@@ -66,16 +66,6 @@ local function labelFor(key, spot)
     return Locale.text(entry.label or key)
 end
 
---- The key name shown in the prompt. The game's own glyph string, so it is right on a
---- controller and right on an AZERTY keyboard.
-local function keyName(control)
-    local raw = GetControlInstructionalButton(0, control, true)
-    if type(raw) == 'string' and raw ~= '' then
-        return (raw:gsub('^t_', ''))
-    end
-    return '?'
-end
-
 local useKeyName, cycleKeyName
 
 local function promptText(candidate)
@@ -189,8 +179,8 @@ end
 CreateThread(function()
     -- The glyph strings need the game to have booted; asking too early returns nothing.
     Wait(2000)
-    useKeyName = keyName(Config.Interaction.key or 38)
-    cycleKeyName = keyName(Config.Interaction.cycleKey or 47)
+    useKeyName = UI.keyLabel(Config.Interaction.key or 38, 'E')
+    cycleKeyName = UI.keyLabel(Config.Interaction.cycleKey or 47, 'G')
 
     if Compat.usesTarget() then
         -- The target resource owns the interaction; markers and prompts would duplicate it.
@@ -238,15 +228,31 @@ local function registerTargets()
                 label = Locale.text(entry.label or key),
 
                 onSelect = function(entity)
-                    -- The target hands back the entity, not a detection candidate, so one is
-                    -- built here. Its coords are the prop's, which is what everything
-                    -- downstream needs.
+                    --[[
+                        The target hands back the entity, not a detection candidate, so one is
+                        built here. Its coords are the prop's, which is what everything
+                        downstream needs.
+
+                        `model` WAS MISSING FROM THIS TABLE, and it is the field that decides which
+                        prop the body is placed against. Without it Equipment.staging returns the
+                        entry's own numbers and applies no modelOverrides at all - so on a server
+                        with a target, which is most of them, NONE of the per-model placement in
+                        this resource had ever been used. Every incline bench got the flat bench's
+                        offset and laid a body out in mid-air beside it.
+
+                        It was invisible from every angle we looked: the alignment tool passes its
+                        own hash so it was always right, and the built-in key prompt passes a real
+                        detection candidate so it was always right too. Only the target path was
+                        wrong, and only in a way that looked like bad measurements.
+                    ]]
                     local coords = entity and DoesEntityExist(entity)
                         and GetEntityCoords(entity)
                         or GetEntityCoords(PlayerPedId())
 
                     Session.start({
                         entity = entity,
+                        model = entity and DoesEntityExist(entity)
+                            and GetEntityModel(entity) or nil,
                         coords = coords,
                         keys = { key },
                         spot = nil,

@@ -1,0 +1,147 @@
+name: Bug report / Rapport de bug
+description: Something in v-sport is broken. / Quelque chose ne fonctionne pas dans v-sport.
+title: "[bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before you file / Avant de poster**
+
+        - Update to the latest release first — the bug may already be fixed. / Mettez à jour vers la dernière version : le bug est peut-être déjà corrigé.
+        - Search the existing issues. / Cherchez dans les issues existantes.
+        - Run `/vsportinfo` and paste what it prints below. It reports the framework, the inventory, the target and whether the database is connected — half of all reports are answered by that one block. / Lancez `/vsportinfo` et collez le résultat ci-dessous : il indique le framework, l'inventaire, le target et l'état de la base. La moitié des rapports se résolvent avec ce seul bloc.
+        - A bug with no console output and no reproduction steps usually cannot be fixed. / Un bug sans sortie console ni étapes de reproduction est rarement corrigeable.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks / Vérifications
+      options:
+        - label: I am on the latest release of v-sport. / Je suis sur la dernière version de v-sport.
+          required: true
+        - label: I searched the existing issues. / J'ai cherché dans les issues existantes.
+          required: true
+        - label: I read the relevant part of README.md / CONFIG.md / PROPS.md. / J'ai lu la partie concernée du README / CONFIG / PROPS.
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: v-sport version
+      description: The `version` line in `fxmanifest.lua`. / La ligne `version` dans `fxmanifest.lua`.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: framework
+    attributes:
+      label: Framework
+      description: Which core is the server running? / Quel core tourne sur le serveur ?
+      options:
+        - qb-core
+        - qbx_core (Qbox)
+        - ox_core
+        - ESX (es_extended)
+        - Standalone (no framework / aucun framework)
+        - Other / Autre
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part? / Quelle partie ?
+      options:
+        - Detection - a prop is not offering anything / Détection - un prop ne propose rien
+        - Animation or body placement / Animation ou placement du corps
+        - The rhythm minigame / Le minijeu rythmique
+        - Stats not saving or not loading / Stats non sauvegardées ou non chargées
+        - Decay, allowance or recovery / Perte, quota ou récupération
+        - Effects (melee, sprint, swim, breath) / Effets (mêlée, sprint, nage, apnée)
+        - Passive training (running, cycling, swimming, diving) / Entraînement passif
+        - Items (whey, protein bar, pre-workout, sports drink) / Items
+        - Adding equipment in game (/vsportadd, /vsportprop) / Ajout de matériel en jeu
+        - The stats panel or the workout HUD / Panneau des stats ou HUD
+        - Radial menu or target integration / Menu radial ou intégration target
+        - Commands or admin permissions / Commandes ou permissions admin
+        - Developer API (exports and events) / API développeur
+        - Other / Autre
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens / Ce qui se passe
+      description: Describe the broken behaviour. / Décrivez le comportement cassé.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected / Ce qui était attendu
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / Étapes de reproduction
+      description: Numbered, from a fresh connection. / Numérotées, depuis une connexion propre.
+      placeholder: |
+        1. Connect to the server / Se connecter au serveur
+        2. Walk to the bench press at Muscle Beach / Aller au banc de Muscle Beach
+        3. Press E / Appuyer sur E
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: info
+    attributes:
+      label: /vsportinfo output / Sortie de /vsportinfo
+      description: Run it in game and paste the whole block from your F8 console. / Lancez-la en jeu et collez tout le bloc depuis votre console F8.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output / Sortie console
+      description: |
+        **Both** consoles, please: the server console (txAdmin or the terminal) and the client F8 console.
+        **Les deux** consoles s'il vous plaît : la console serveur (txAdmin ou le terminal) et la console client F8.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant config / Configuration concernée
+      description: The part of `config.lua` you changed, if any. Never paste your database password. / La partie de `config.lua` que vous avez modifiée. Ne collez jamais votre mot de passe de base de données.
+      render: lua
+
+  - type: input
+    id: prop
+    attributes:
+      label: If it is about one prop / Si ça concerne un prop précis
+      description: The model name, and what `/vsportscan` says about it. / Le nom du modèle, et ce que `/vsportscan` en dit.
+      placeholder: "prop_muscle_bench_05, /vsportscan says YES, offers bench_press"
+
+  - type: input
+    id: resources
+    attributes:
+      label: Related resources / Ressources liées
+      description: Inventory, target, gym MLO, anything that changes stats — with versions if you know them. / Inventaire, target, MLO de salle, tout ce qui modifie les stats.
+      placeholder: "ox_inventory 2.40, ox_target, a custom Vespucci gym MLO"
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or anything else / Captures d'écran ou autre
+      description: A screenshot is worth a paragraph for anything about a body in the wrong place. / Une capture vaut un paragraphe pour tout ce qui concerne un corps mal placé.

@@ -323,9 +323,18 @@ function Menu.open()
     CreateThread(function()
         local closeKeys = Config.UI.panel.closeKeys or { 177, 200 }
 
-        local closeName = 'ESC'
-        local raw = GetControlInstructionalButton(0, closeKeys[1] or 177, true)
-        if type(raw) == 'string' and raw ~= '' then closeName = (raw:gsub('^t_', '')) end
+        --[[
+            UI.keyLabel, NOT the raw glyph lookup.
+
+            This panel kept its own copy of the old approach - ask
+            GetControlInstructionalButton, strip a leading `t_` - and that native answers with an
+            internal token for a good number of controls. BACKSPACE comes back as `b_1004`, so the
+            footer read "[b_1004] Fermer".
+
+            The same bug was fixed for the workout HUD and the prompts and missed here, which is
+            the argument for having one helper rather than three copies of two lines.
+        ]]
+        local closeName = UI.keyLabel(closeKeys[1] or 177, 'ESC')
 
         -- A grace period so the key that opened the panel does not immediately close it.
         local ignoreUntil = GetGameTimer() + 250

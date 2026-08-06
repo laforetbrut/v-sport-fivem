@@ -1,0 +1,26 @@
+# Line endings, decided here rather than by whoever cloned it.
+#
+# Everything text is LF in the repository and LF in the working tree. Without this, a Windows clone
+# converts on checkout and the next `git status` reports every file as modified when nothing was
+# touched - which is noise for a contributor and hides real changes in a diff.
+
+* text=auto eol=lf
+
+# Lua, config and docs: always text, never guessed.
+*.lua    text eol=lf
+*.md     text eol=lf
+*.py     text eol=lf
+*.json   text eol=lf
+*.yml    text eol=lf
+*.sql    text eol=lf
+*.svg    text eol=lf
+
+# Binary. Never converted, never diffed as text.
+*.png    binary
+*.jpg    binary
+*.ogg    binary
+*.webp   binary
+
+# Generated from the catalogue by tools/props.py. Marked so a diff on it reads as output rather than
+# as authored prose - edit shared/equipment.lua and regenerate instead.
+PROPS.md linguist-generated=true

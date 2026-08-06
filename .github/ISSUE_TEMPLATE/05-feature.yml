@@ -1,0 +1,74 @@
+name: Feature request / Demande de fonctionnalité
+description: Something v-sport should do and does not. / Quelque chose que v-sport devrait faire et ne fait pas.
+title: "[feature] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two things worth checking before writing this up, because both are common and both already
+        have an answer:
+
+        - **Adding equipment, props or a new exercise is configuration, not a feature.** See PROPS.md
+          and `Config.ExtraEquipment`, or just `/vsportadd` in game.
+        - **Anything another resource should be able to do to a player's body probably already
+          exists.** There are 71 exports. See API.md before asking for a hook.
+
+        Deux choses à vérifier d'abord, car les deux reviennent souvent et ont déjà une réponse :
+        ajouter du matériel ou un exercice est de la configuration (PROPS.md, `/vsportadd`), et tout
+        ce qu'une autre ressource devrait pouvoir faire au corps d'un joueur existe probablement
+        déjà — 71 exports, voir API.md.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks / Vérifications
+      options:
+        - label: This is not already possible through config.lua. / Ce n'est pas déjà possible via config.lua.
+          required: true
+        - label: This is not already an export in API.md. / Ce n'est pas déjà un export dans API.md.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem / Le problème
+      description: |
+        What you are trying to do, not the solution you have in mind. A described problem often has a
+        better answer than the feature that was asked for.
+        Ce que vous essayez de faire, pas la solution que vous imaginez. Un problème décrit a souvent
+        une meilleure réponse que la fonctionnalité demandée.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like / Ce que vous voudriez
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the resource? / Quelle partie de la ressource ?
+      options:
+        - Equipment, props and exercises / Matériel, props et exercices
+        - The minigame / Le minijeu
+        - Progression, decay or the allowance / Progression, pertes ou quota
+        - Effects on the character / Effets sur le personnage
+        - Passive training / Entraînement passif
+        - Items and consumables / Items et consommables
+        - Interface - the panel or the HUD / Interface - panneau ou HUD
+        - Developer API / API développeur
+        - Staff and admin tooling / Outils staff et admin
+        - Framework or inventory support / Support framework ou inventaire
+        - Other / Autre
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead / Ce que vous avez essayé à la place
+      description: Config changes, another resource, your own patch. / Modifications de config, une autre ressource, votre propre patch.

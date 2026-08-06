@@ -32,6 +32,43 @@ State.allowanceSpent = { total = 0.0, stats = {} }
 State.allowanceResetsIn = nil
 State.allowanceWindow = nil
 
+--[[
+    ---------------------------------------------------------------------------------------
+    THE DEVELOPER TOOLS GATE
+    ---------------------------------------------------------------------------------------
+
+    Whether this player may run the developer commands. FALSE until the server says otherwise,
+    which is the important half: a player who joins and immediately types /vsportgoto is refused
+    because the answer has not arrived, rather than allowed because it has not arrived.
+
+    THE SERVER IS THE ONLY AUTHORITY. The client never decides this for itself - it asks, and the
+    answer comes from Bridge.isAdmin, which checks the configured ace first and the framework's
+    own idea of staff second. Config.Commands.restrictDevCommands = false opens them to everyone,
+    for a development server.
+
+    An honest limit: this is a gate on the COMMANDS, not a security boundary. Everything the dev
+    tools do - teleport yourself, spawn a local prop, print to your own console - a modified
+    client could do without them. What this stops is an ordinary player on an ordinary client
+    finding a free map-wide teleport in the chat suggestions, which is what shipped before.
+]]
+State.devAllowed = false
+
+--- Refuse, with a reason, unless the server has said this player may use the developer tools.
+--- Every dev command goes through this one function; the third occurrence of a duplicated
+--- two-line guard is how the key-label bug in ERROR_LOG.md happened three times.
+function State.devGate()
+    if State.devAllowed then return true end
+
+    Compat.notify(L('notify.no_permission'), 'error')
+    print('^3[v-sport] the developer commands are restricted to admins '
+        .. '(Config.Commands.restrictDevCommands).^7')
+    return false
+end
+
+RegisterNetEvent('vsport:client:DevAccess', function(allowed)
+    State.devAllowed = allowed == true
+end)
+
 --- What the allowance still permits, globally and per stat. Both are `math.huge` when that
 --- part of the allowance is switched off in the config.
 function State.allowanceLeft()
@@ -272,6 +309,20 @@ CreateThread(function()
 
     TriggerServerEvent('vsport:server:PlayerReady')
 
+    --[[
+        And ask whether this player may use the developer tools.
+
+        A separate question from the stats, deliberately: an admin whose ace is granted by a
+        permissions resource that loads after this one, or who is promoted mid-session, would
+        otherwise stay locked out until they reconnected. The server also pushes the answer
+        unasked when the profile loads, so this is belt and braces rather than the only path.
+
+        The gate stays CLOSED until an answer arrives. A dropped event costs an admin one
+        /vsportdev to ask again; the alternative failure - open until told otherwise - would
+        cost every player a free teleport for the first few seconds of every session.
+    ]]
+    TriggerServerEvent('vsport:server:RequestDevAccess')
+
     -- Ask again if nothing came back. A framework that loads the character late, a server
     -- that was still booting, a one-off dropped event: all of them look the same from here
     -- and all of them are fixed by asking twice.
@@ -281,6 +332,7 @@ CreateThread(function()
         attempts = attempts + 1
         if not State.ready then
             TriggerServerEvent('vsport:server:PlayerReady')
+            TriggerServerEvent('vsport:server:RequestDevAccess')
         end
     end
 

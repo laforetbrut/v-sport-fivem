@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Sports drink bottle. v-sport item icon. -->
+  <defs>
+    <linearGradient id="plastic" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8fd3e8" stop-opacity="0.55"/>
+      <stop offset="0.35" stop-color="#d6f2fa" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#6fb6cf" stop-opacity="0.55"/>
+    </linearGradient>
+    <linearGradient id="drink" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1e8f4e"/>
+      <stop offset="0.4" stop-color="#39c76f"/>
+      <stop offset="1" stop-color="#177a41"/>
+    </linearGradient>
+  </defs>
+
+  <!-- sports cap -->
+  <path d="M45 8 h10 v6 h-10 Z" fill="#e8ecef"/>
+  <path d="M42 14 h16 a2 2 0 0 1 2 2 v6 H40 v-6 a2 2 0 0 1 2 -2 Z" fill="#1e8f4e"/>
+
+  <!-- neck and shoulders -->
+  <path d="M43 22 h14 l4 10 H39 Z" fill="url(#plastic)"/>
+
+  <!-- body, with the waist a sports bottle has -->
+  <path d="M39 32 h22 v14 q-4 3 -4 6 t4 6 v22 a6 6 0 0 1 -6 6 H45 a6 6 0 0 1 -6 -6 V58 q4 -3 4 -6 t-4 -6 Z"
+        fill="url(#plastic)"/>
+
+  <!-- the drink -->
+  <path d="M41 40 h18 v6 q-4 3 -4 6 t4 6 v22 a4 4 0 0 1 -4 4 H45 a4 4 0 0 1 -4 -4 V58 q4 -3 4 -6 t-4 -6 Z"
+        fill="url(#drink)"/>
+
+  <!-- label -->
+  <rect x="41" y="62" width="18" height="12" fill="#f4f7f8" opacity="0.9"/>
+  <g fill="#177a41">
+    <rect x="44" y="66" width="12" height="2" rx="1"/>
+    <rect x="44" y="70" width="8" height="2" rx="1"/>
+  </g>
+
+  <!-- highlight -->
+  <rect x="42" y="34" width="3" height="52" rx="1.5" fill="#ffffff" opacity="0.35"/>
+</svg>

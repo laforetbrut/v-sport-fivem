@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Pre-workout: a shaker of something violently pink. v-sport item icon. -->
+  <defs>
+    <linearGradient id="shaker" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2a3038"/>
+      <stop offset="0.3" stop-color="#3d4652"/>
+      <stop offset="0.62" stop-color="#2f3740"/>
+      <stop offset="1" stop-color="#20262c"/>
+    </linearGradient>
+    <linearGradient id="juice" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#c2185b"/>
+      <stop offset="0.4" stop-color="#f0417d"/>
+      <stop offset="1" stop-color="#a01048"/>
+    </linearGradient>
+  </defs>
+
+  <!-- flip cap -->
+  <path d="M40 10 h20 a3 3 0 0 1 3 3 v7 H37 v-7 a3 3 0 0 1 3 -3 Z" fill="#1b2026"/>
+  <rect x="44" y="6" width="12" height="5" rx="2" fill="#f0417d"/>
+
+  <!-- bottle -->
+  <path d="M37 20 h26 v58 a8 8 0 0 1 -8 8 H45 a8 8 0 0 1 -8 -8 Z" fill="url(#shaker)"/>
+
+  <!-- the liquid, filled to two thirds -->
+  <path d="M39 44 h22 v34 a6 6 0 0 1 -6 6 H45 a6 6 0 0 1 -6 -6 Z" fill="url(#juice)"/>
+
+  <!-- measure lines -->
+  <g stroke="#ffffff" stroke-width="1.4" opacity="0.35">
+    <line x1="55" y1="34" x2="61" y2="34"/>
+    <line x1="55" y1="48" x2="61" y2="48"/>
+    <line x1="55" y1="62" x2="61" y2="62"/>
+  </g>
+
+  <!-- a lightning bolt, because "pre-workout" needs one glance to read -->
+  <path d="M50 50 l-7 12 h6 l-3 10 l10 -14 h-6 Z" fill="#ffe14d"/>
+
+  <!-- highlight -->
+  <rect x="40" y="22" width="4" height="60" rx="2" fill="#ffffff" opacity="0.12"/>
+</svg>

@@ -31,6 +31,10 @@ shared_scripts {
     -- its difficulty presets, so it loads after it.
     'shared/equipment.lua',
 
+    -- The shape of a live equipment addition, and the vector3-to-JSON conversion both sides
+    -- share. After equipment.lua, which owns the overlay it feeds.
+    'shared/custom.lua',
+
     -- The progression, decay and level maths. Shared because the server computes them and
     -- the client displays them: one implementation, no drift between the two.
     'shared/stats.lua',
@@ -54,6 +58,12 @@ client_scripts {
     'client/interact.lua',
     'client/passive.lua',
     'client/menu.lua',
+    -- The live alignment tool. After session.lua, because it reuses the same staging data, and
+    -- before commands.lua only for readability - it registers its own command.
+    'client/tune.lua',
+    -- The staff commands for adding equipment. After tune.lua, whose save key calls into the
+    -- same server events, and after detect.lua, whose index it invalidates on a change.
+    'client/custom.lua',
     'client/commands.lua',
 }
 
@@ -66,10 +76,17 @@ server_scripts {
     -- After api.lua: the item handlers call the exports it registers.
     'server/items.lua',
     'server/commands.lua',
+    -- Owns data/custom.json and authorises every change to it. After commands.lua, which
+    -- registers the admin gate this one re-checks.
+    'server/custom.lua',
 }
 
 -- The SQL is shipped for operators who prefer to import a schema by hand. The table is
 -- created on first start when it is missing, so importing it is optional.
+--
+-- data/custom.json holds the equipment added in game. It is listed so that SaveResourceFile can
+-- write it and LoadResourceFile can read it back; it does not exist until something is added.
 files {
     'sql/v_sport.sql',
+    'data/custom.json',
 }

@@ -171,8 +171,21 @@ function Stats.sessionGains(entry, context)
                 * Sport.clamp(multipliers[key], 0.0, 100.0, 1.0)
                 * (tonumber(Config.Debug.gainMultiplier) or 1.0)
 
-            -- Per-equipment ceiling: a home dumbbell that stops being useful past 60.
+            --[[
+                Two kinds of ceiling, and the lower of the two wins.
+
+                `entry.trains` is the EQUIPMENT's own limit - a home dumbbell that stops being
+                useful past 60 strength, pushing players towards a real gym.
+
+                `context.ceilings` is a limit another resource imposed on this PLAYER, through
+                SetStatCeiling: a heavy smoker whose stamina cannot pass 60 however hard they
+                train. See Config.Buffs.minStatCeiling and API.md.
+            ]]
             local ceiling = type(entry.trains) == 'table' and tonumber(entry.trains[key]) or nil
+            local imposed = type(context.ceilings) == 'table' and tonumber(context.ceilings[key]) or nil
+
+            if imposed and (not ceiling or imposed < ceiling) then ceiling = imposed end
+
             if ceiling and value >= ceiling then
                 points = 0.0
             elseif ceiling and value + points > ceiling then
@@ -364,14 +377,22 @@ function Stats.decayPeriods(key, now, lastSession, anchor)
     return periods, base + periods * cfg.interval
 end
 
---- The value `key` decays to after `periods` intervals, honouring both floors.
---- `peak` is the highest value the character ever reached; pass 0 to ignore peak protection.
-function Stats.applyDecay(key, value, periods, peak)
+--[[
+    The value `key` decays to after `periods` intervals, honouring both floors.
+
+    `peak` is the highest value the character ever reached; pass 0 to ignore peak protection.
+
+    `multiplier` scales how much each period costs, and is how another resource makes a
+    character lose condition faster than normal - a heavy smoker at 2.0 loses 20 a day rather
+    than 10. See SetDecayMultiplier in API.md. nil is 1.0.
+]]
+function Stats.applyDecay(key, value, periods, peak, multiplier)
     local def = Stats.def(key)
     if not def or periods <= 0 then return value end
 
     local cfg = Stats.decayConfig(key)
     local floor = cfg.floor
+    local scale = Sport.clamp(multiplier, 0.0, tonumber(Config.Buffs.maxDecayMultiplier) or 5.0, 1.0)
 
     -- Peak protection is the gentler floor: it is relative to what the character achieved
     -- rather than absolute, so a long absence costs a known amount instead of everything.
@@ -381,7 +402,7 @@ function Stats.applyDecay(key, value, periods, peak)
         if protected > floor then floor = protected end
     end
 
-    local out = (tonumber(value) or 0) - cfg.amount * periods
+    local out = (tonumber(value) or 0) - cfg.amount * periods * scale
     if out < floor then out = floor end
 
     return Sport.round(math.max(0.0, out), Config.Progression.decimals or 2)

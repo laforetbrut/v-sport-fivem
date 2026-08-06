@@ -49,6 +49,19 @@ local function blankProfile(identifier)
         -- a supplement that outlives the server it was taken on is a bug, not a feature.
         buffs = {},
         multipliers = {},
+
+        --[[
+            The three "make this character worse" mechanics, all driven from outside by a
+            drug, a smoking or an injury script. See API.md.
+
+            ceilings   stat -> { value, expires }   training cannot pass this
+            drains     list of { id, stat, perHour, expires, lastAt }
+            decayMult  { value, expires }           decay runs this much faster
+        ]]
+        ceilings = {},
+        drains = {},
+        decayMult = nil,
+
         decayPaused = false,
         decayImmuneUntil = 0,
         blocked = false,
@@ -64,6 +77,16 @@ end
 --- The profile for `src`, or nil when the player has not finished loading.
 function Profiles.get(src)
     return profiles[tonumber(src)]
+end
+
+-- Ids for buffs, multipliers and drains. Defined here rather than next to the buff code
+-- because the drain code above it also needs one, and a Lua local is only visible to what is
+-- written after it.
+local nextId = 0
+
+local function newId(prefix)
+    nextId = nextId + 1
+    return ('%s%d'):format(prefix, nextId)
 end
 
 --- Mark a profile for the next flush. Cheap on purpose: called from everywhere.
@@ -307,6 +330,241 @@ local function rateLimited(profile)
 end
 
 -- ---------------------------------------------------------------------------------------
+-- Ceilings, drains and accelerated decay
+-- ---------------------------------------------------------------------------------------
+--
+-- Everything in this block exists so that a resource modelling something BAD for the body -
+-- smoking, an addiction, an untreated injury - can express it as more than "minus five
+-- strength, once". A habit is not an event; it is a condition that holds you back for as long
+-- as you have it, and these are the three shapes that takes:
+--
+--   a CEILING    you can still train, you just cannot get past 60 stamina while you smoke
+--   a DRAIN      you lose a little every hour, for as long as it is in your system
+--   FASTER DECAY the ten points a day of absence becomes twenty
+--
+-- All three expire on their own. None of them touches a stat the moment it is applied, which
+-- is what makes them feel like a condition rather than a punishment.
+
+--- The ceiling in force on `key`, or nil. Expired entries are dropped here rather than swept,
+--- so a ceiling lifts on the exact second even if nothing else is running.
+function Profiles.ceiling(profile, key)
+    local entry = profile.ceilings[key]
+    if type(entry) ~= 'table' then return nil end
+
+    local expires = tonumber(entry.expires) or 0
+    if expires > 0 and expires <= Sport.now() then
+        profile.ceilings[key] = nil
+        return nil
+    end
+
+    return tonumber(entry.value)
+end
+
+--- Every ceiling currently in force, for handing to Stats.sessionGains.
+local function ceilingsOf(profile)
+    local out = {}
+    for key in pairs(Config.Stats) do
+        out[key] = Profiles.ceiling(profile, key)
+    end
+    return out
+end
+
+--- Cap what training can reach on one stat. `seconds` of 0 means until it is cleared.
+function Profiles.setCeiling(src, key, value, seconds)
+    local profile = profiles[src]
+    local def = Stats.def(key)
+    if not profile or not def then return false end
+
+    local floor = tonumber(Config.Buffs.minStatCeiling) or 10.0
+    local cap = Sport.clamp(value, floor, def.max or 100.0, nil)
+    if not cap then return false end
+
+    local duration = math.floor(Sport.clamp(seconds, 0,
+        tonumber(Config.Buffs.maxDurationSeconds) or 86400, 0))
+
+    profile.ceilings[key] = {
+        value = cap,
+        expires = duration > 0 and (Sport.now() + duration) or 0,
+    }
+
+    -- By default a ceiling only stops further gains; it does not delete training already
+    -- done. Taking up smoking should not erase last month's work.
+    if Config.Buffs.ceilingTrimsExisting and (profile.stats[key] or 0) > cap then
+        profile.stats[key] = cap
+        Profiles.touch(src)
+    end
+
+    Profiles.sync(src)
+    return true
+end
+
+function Profiles.clearCeiling(src, key)
+    local profile = profiles[src]
+    if not profile then return false end
+
+    if key == nil then
+        profile.ceilings = {}
+    elseif profile.ceilings[key] == nil then
+        return false
+    else
+        profile.ceilings[key] = nil
+    end
+
+    Profiles.sync(src)
+    return true
+end
+
+--- How much faster decay runs for this character right now. 1.0 is normal.
+function Profiles.decayMultiplier(profile)
+    local entry = profile.decayMult
+    if type(entry) ~= 'table' then return 1.0 end
+
+    local expires = tonumber(entry.expires) or 0
+    if expires > 0 and expires <= Sport.now() then
+        profile.decayMult = nil
+        return 1.0
+    end
+
+    return Sport.clamp(entry.value, 0.0, tonumber(Config.Buffs.maxDecayMultiplier) or 5.0, 1.0)
+end
+
+--- Make decay run faster, or slower. `value` below 1.0 slows it; 0.0 is the same as immunity.
+function Profiles.setDecayMultiplier(src, value, seconds)
+    local profile = profiles[src]
+    if not profile then return false end
+
+    local factor = Sport.clamp(value, 0.0, tonumber(Config.Buffs.maxDecayMultiplier) or 5.0, nil)
+    if not factor then return false end
+
+    local duration = math.floor(Sport.clamp(seconds, 0,
+        tonumber(Config.Buffs.maxDurationSeconds) or 86400, 0))
+
+    if factor == 1.0 and duration == 0 then
+        profile.decayMult = nil
+    else
+        profile.decayMult = {
+            value = factor,
+            expires = duration > 0 and (Sport.now() + duration) or 0,
+        }
+    end
+
+    Profiles.sync(src)
+    return true
+end
+
+--[[
+    A continuous loss, in points per hour, for as long as it lasts.
+
+    Charged by the same slow timer that re-checks decay, from the time actually elapsed since
+    the drain was last charged rather than from an assumed interval - so a starved or retimed
+    loop bills the right amount, not a multiple of it.
+
+    LIKE BUFFS, A DRAIN DOES NOT SURVIVE A DISCONNECT OR A RESTART. That is deliberate and it
+    is the right split: v-sport holds the transient effect, and the resource that owns the
+    CONDITION - the addiction level, the untreated injury - owns persisting it and re-applies
+    on `vsport:server:PlayerLoaded`. A drain that outlived the server it was started on would
+    belong to nobody.
+]]
+function Profiles.addDrain(src, key, perHour, seconds, id)
+    local profile = profiles[src]
+    if not profile or not Stats.def(key) then return nil end
+
+    local rate = Sport.clamp(perHour, 0.0, tonumber(Config.Buffs.maxDrainPerHour) or 10.0, nil)
+    if not rate or rate <= 0 then return nil end
+
+    local duration = math.floor(Sport.clamp(seconds, 0,
+        tonumber(Config.Buffs.maxDurationSeconds) or 86400, 0))
+
+    local now = Sport.now()
+    local entry = {
+        id = id or newId('d'),
+        stat = key,
+        perHour = rate,
+        expires = duration > 0 and (now + duration) or 0,
+        lastAt = now,
+    }
+
+    profile.drains[#profile.drains + 1] = entry
+    Profiles.sync(src)
+    return entry.id
+end
+
+function Profiles.removeDrain(src, id)
+    local profile = profiles[src]
+    if not profile then return false end
+
+    local removed = false
+
+    if id == nil then
+        removed = #profile.drains > 0
+        profile.drains = {}
+    else
+        for index = #profile.drains, 1, -1 do
+            if profile.drains[index].id == id then
+                table.remove(profile.drains, index)
+                removed = true
+            end
+        end
+    end
+
+    if removed then Profiles.sync(src) end
+    return removed
+end
+
+--[[
+    Charge every active drain for the time that has passed.
+
+    Returns a table of stat -> points lost. Expired drains are charged for the portion of the
+    interval they were still alive for, then dropped - a drain that ended twenty minutes ago
+    should not bill for the twenty minutes since.
+]]
+function Profiles.processDrains(src)
+    local profile = profiles[src]
+    if not profile or #profile.drains == 0 then return {} end
+
+    local now = Sport.now()
+    if now <= 0 then return {} end
+
+    local lost = {}
+    local decimals = Config.Progression.decimals or 2
+
+    for index = #profile.drains, 1, -1 do
+        local drain = profile.drains[index]
+        local from = tonumber(drain.lastAt) or now
+        local expires = tonumber(drain.expires) or 0
+
+        -- Only bill up to the moment it expired.
+        local until_ = (expires > 0 and expires < now) and expires or now
+        local hours = (until_ - from) / 3600.0
+
+        if hours > 0 then
+            local def = Stats.def(drain.stat)
+            local floor = Stats.decayConfig(drain.stat).floor
+            local before = profile.stats[drain.stat] or 0
+            local after = math.max(floor, before - drain.perHour * hours)
+
+            if def and after < before then
+                profile.stats[drain.stat] = Sport.round(after, decimals)
+                lost[drain.stat] = Sport.round((lost[drain.stat] or 0) + (before - after), decimals)
+            end
+
+            drain.lastAt = until_
+        end
+
+        if expires > 0 and expires <= now then
+            table.remove(profile.drains, index)
+
+            if Config.Buffs.fireExpiryEvents then
+                TriggerEvent('vsport:server:DrainExpired', src, drain.id, drain.stat)
+            end
+        end
+    end
+
+    if next(lost) then Profiles.touch(src) end
+    return lost
+end
+
+-- ---------------------------------------------------------------------------------------
 -- Decay
 -- ---------------------------------------------------------------------------------------
 
@@ -336,6 +594,7 @@ function Profiles.applyDecay(src, silent)
     if (tonumber(profile.lastSession) or 0) <= 0 then return {} end
 
     local lost = {}
+    local multiplier = Profiles.decayMultiplier(profile)
 
     for _, key in ipairs(Stats.keys()) do
         local periods, anchor = Stats.decayPeriods(key, now, profile.lastSession,
@@ -345,7 +604,7 @@ function Profiles.applyDecay(src, silent)
 
         if periods > 0 then
             local before = profile.stats[key] or 0
-            local after = Stats.applyDecay(key, before, periods, profile.peak[key])
+            local after = Stats.applyDecay(key, before, periods, profile.peak[key], multiplier)
 
             if after < before then
                 profile.stats[key] = after
@@ -457,6 +716,7 @@ function Profiles.awardSession(src, entry, quality)
         restedHours = restedHours,
         multipliers = multipliers,
         allowance = spent,
+        ceilings = ceilingsOf(profile),
     })
 
     local now = Sport.now()
@@ -500,6 +760,35 @@ end
     training allowance like a workout would; the default is false, because an admin fixing a
     number and a drug granting a bonus are both explicitly NOT workouts.
 ]]
+--[[
+    Reset the decay clock without counting a session.
+
+    Used by passive training when Config.Passive.countsAsTraining is on. It deliberately does NOT
+    go through awardSession: that function also increments the session count, feeds the fatigue
+    window and feeds the hourly rate limit, and a report arriving every thirty seconds while a
+    player cycles across the map would exhaust all three within the hour and then block their
+    real workout. What is wanted here is only the clock.
+
+    `keys` is the stats that actually gained. A stat that earned nothing keeps its old anchor,
+    because swimming is not a reason for a strength decay to be forgiven.
+]]
+function Profiles.markTrained(src, keys)
+    local profile = profiles[src]
+    if not profile or type(keys) ~= 'table' then return end
+
+    local now = Sport.now()
+    profile.lastSession = now
+
+    for key in pairs(keys) do
+        if Stats.def(key) then
+            profile.decayAnchor[key] = now + Stats.decayConfig(key).grace
+        end
+    end
+
+    Profiles.touch(src)
+    Profiles.sync(src)
+end
+
 function Profiles.changeStat(src, key, amount, mode, respectAllowance)
     local profile = profiles[src]
     local def = Stats.def(key)
@@ -527,10 +816,15 @@ function Profiles.changeStat(src, key, amount, mode, respectAllowance)
         after = before + value
     end
 
+    -- `respectAllowance` means "treat this as training", so it obeys everything training
+    -- obeys: the allowance, and any ceiling another resource has imposed.
     if respectAllowance and after > before then
         local globalLeft, perStat = Stats.allowanceLeft(Profiles.allowanceSpent(profile))
         local room = math.min(globalLeft, perStat[key] or math.huge)
         if (after - before) > room then after = before + room end
+
+        local ceiling = Profiles.ceiling(profile, key)
+        if ceiling and after > ceiling then after = math.max(before, ceiling) end
     end
 
     after = Sport.round(Sport.clamp(after, 0.0, def.max or 100.0, before),
@@ -557,13 +851,6 @@ end
 -- ---------------------------------------------------------------------------------------
 -- Buffs
 -- ---------------------------------------------------------------------------------------
-
-local nextBuffId = 0
-
-local function newId(prefix)
-    nextBuffId = nextBuffId + 1
-    return ('%s%d'):format(prefix, nextBuffId)
-end
 
 --- Add temporary points to a stat's effective value. Returns the id, for RemoveBuff.
 function Profiles.addBuff(src, key, amount, seconds, id)
@@ -781,6 +1068,9 @@ function Profiles.sync(src)
         allowanceSpent = spent,
         allowanceResetsIn = Profiles.allowanceResetsIn(profile),
         allowanceWindow = windowFor(profile),
+        ceilings = ceilingsOf(profile),
+        drains = profile.drains,
+        decayMultiplier = Profiles.decayMultiplier(profile),
     })
 
     publishStateBag(src, profile)
@@ -942,6 +1232,15 @@ CreateThread(function()
 
         for src, profile in pairs(profiles) do
             local lost = Profiles.applyDecay(src, false)
+
+            -- Continuous drains from a drug, a habit or an injury. Charged from real elapsed
+            -- time, so this timer's cadence does not change the total.
+            local drained = Profiles.processDrains(src)
+            if next(drained) then
+                for key, amount in pairs(drained) do
+                    lost[key] = (lost[key] or 0) + amount
+                end
+            end
 
             local freed = pruneAllowance(profile)
             if freed then Profiles.touch(src) end

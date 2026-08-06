@@ -10,6 +10,23 @@ their next update and leave you wondering why.
 
 It takes about two minutes. Pick your inventory below and paste the block.
 
+## Or let the resource write the block for you
+
+```
+/vsportitems
+```
+
+It detects your inventory and prints the exact block to paste, **generated from `Config.Items`**.
+Pass `qb-core`, `ox_inventory`, `esx` or `all` to get a specific one.
+
+Use it rather than copying from the sections below if you have changed anything: the blocks here are
+written for the shipped names and weights, and the command's output follows your config. Rename
+`whey` to `proteine`, change a weight, add a fifth item - run the command again and the block is
+correct. That is the whole reason `label`, `description`, `weight` and `image` live in `config.lua`
+rather than only in this document.
+
+The command is admin only, and it prints to both the server console and your own F8.
+
 An item configured in `Config.Items` that does not exist in your inventory costs nothing: the
 handler is registered, nobody can ever hold one, and it is never called. So you can add whey
 now and the other three later, or never.
@@ -28,6 +45,25 @@ now and the other three later, or never.
 All four are defined in section 5c of `config.lua`, where the amounts, durations, cooldowns
 and messages can be changed. The `effect` field is what decides behaviour; the rest is
 numbers.
+
+Each entry also carries the inventory metadata - `label`, `description`, `weight` and `image`. This
+resource never reads those; `/vsportitems` does, to generate your registration block. Keeping them in
+the config is what stops a rename from meaning two edits in two files.
+
+## Images
+
+`images/` holds an icon for each of the four, **as PNG ready to use** at 100x100 with a transparent
+background, plus the SVG sources they were drawn from. Copy the four PNGs into your inventory's image
+folder - `images/README.md` has the path for five common inventories, and `python tools/icons.py`
+rebuilds them if you edit anything.
+
+If you would rather not bother, point the config at an image your inventory already ships:
+
+```lua
+Config.Items.whey.image = 'protein.png'
+```
+
+A missing image is not fatal either. Inventories fall back to a placeholder and the item still works.
 
 **Whey is the important one.** The recovery mechanic in section 5b is what stops a player
 maxing out in a weekend, and whey is the intended way to speed it up. Everything else is

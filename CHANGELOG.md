@@ -14,11 +14,90 @@ First release.
 ### Added
 
 - **Automatic equipment detection.** The object pool around the player is matched against a
-  catalogue of 20 exercises spread over 94 prop models: benches, dumbbells, weight and squat
-  racks, kettlebells, pull-up and dip bars, mats, heavy and speed bags, treadmills, exercise
-  bikes, rowing machines, skipping ropes, battle ropes, yoga, stretching, leg press and cable
-  machines.
-- **`/sportscan` and `/sportspot`.** No shipped catalogue can know what a custom MLO contains,
+  catalogue of 18 exercises over 31 prop models: benches, dumbbells and every loaded barbell,
+  squat racks, pull-up bars and rings, mats, the heavy bag, exercise bikes, yoga and stretching,
+  plus kettlebells, speed bags, treadmills, rowing machines, battle ropes, leg press, cable
+  machines and mirror work for gyms whose MLO ships them.
+
+  Every model name was verified against the game with `IsModelValid`: 85 that appear on the
+  community prop lists do not exist in the base files at all and were removed rather than left in
+  to look generous. A whole-map sweep then recorded which of the survivors are actually placed
+  somewhere, since a model that exists and sits nowhere cannot be walked up to.
+- **Every body placement measured in game, not guessed.** All 40 prop and exercise pairs, each one
+  aligned with `/vsportprop` against the real prop and pasted back as a measurement, with
+  `modelOverrides` where a sibling model genuinely differs - the two beach pull-up frames put their
+  origins in different places, and the three weight racks sit at three different heights. Where a
+  prop could not be measured reliably it was removed rather than shipped with a guess.
+- **`/vsporttour` reviews every animation on every prop, one at a time.** It spawns each prop and
+  exercise pair in turn with its real placement and waits for a verdict: `1` right, `2` wrong. F8 lists
+  only the wrong ones at the end, with the command to fix each. The only way to know an animation looks
+  right on a given prop is to look at it, and this is forty looks without forty commands.
+- **`/vsportmissing` answers "have we missed a prop?" by asking the game.** It runs `IsModelValid`
+  over a candidate list and reports both directions: models that exist in your build and are not in
+  the catalogue, and models the catalogue claims that your build does not have. A list cannot answer
+  this - every published GTA prop dump is incomplete, and the one used to seed the candidates
+  contains neither `prop_weight_squat` nor `prop_pris_bench_01`, both of which are real and in use
+  here. Add your MLO's names to `Config.Debug.candidateModels` and the game will confirm them.
+
+  It found `prop_punch_bag_l`, the game's other heavy bag, which was not in the catalogue.
+- **Add equipment from inside the game, with no file to edit and no restart.** Stand in your own gym
+  MLO, look at the machine, and `/vsportadd treadmill`. It takes the prop you are **looking at** -
+  not a name you typed - checks the game really has that model, and adds it live for every player.
+  Then `/vsportprop treadmill` to align the body, and **K** saves that for everyone too.
+
+  Additions live in `data/custom.json`, owned by the server and pushed to every client, and both
+  sides rebuild the catalogue in place. `/vsportexport` prints the lot as a `Config.ExtraEquipment`
+  block for when an addition has proven itself and belongs in version control; `/vsportcustom`,
+  `/vsportremove`, `/vsportreload` and `/vsportreset` cover the rest. The client resolves and
+  validates the model; the server re-checks `Bridge.isAdmin` on every event and re-validates the
+  name, because that one ends up on disk.
+- **`/vsportitems` writes your inventory block for you**, generated from `Config.Items` for qb-core,
+  ox_inventory or ESX. Each item now carries its own `label`, `description`, `weight` and `image`, so
+  renaming `whey` to `proteine` is one edit instead of two and the documented block can never be out
+  of date with the config.
+- **Item icons**, as SVG sources in `images/`, with a one-line conversion command and the image
+  folder path for five common inventories. SVG because one source covers a 64 px ox_inventory slot
+  and a 200 px custom one without the blur a resized PNG gets, and because changing the whey tub's
+  colour to match your server is one hex value.
+- **GitHub issue templates**, six of them: bug, unrecognised prop, compatibility, balance, feature
+  and documentation. The prop template leads with `/vsportadd`, because most of those reports are
+  something the reporter can fix in ten seconds without waiting for a release. Plus a security
+  policy that says plainly what does and does not count as a vulnerability, and a pull request
+  checklist tied to what the check script enforces.
+- **The developer commands are admin-only, server-side.** `/vsportprop`, `/vsportgoto`,
+  `/vsportfind`, `/vsportscan`, `/vsportspot`, `/vsportoffset` and `/vsportinfo` are gated by
+  `Bridge.isAdmin`, checked on the server and pushed to the client, which refuses everything until
+  an answer arrives. Two of them teleport, so left open they were a free teleport in every player's
+  chat suggestions - `Config.Commands.restrictDevCommands` had shipped declared, documented and
+  read by nothing. `/vsportdev` re-asks, for an admin promoted mid-session. The check script now
+  fails the build if a dev command loses its gate, and refuses to pass if its own detection breaks.
+- **The effect ceilings are provably hard.** No stack of buffs, drugs or admin commands can take an
+  effect past its configured `max`: `Stats.bonus` clamps the stat to its own maximum before
+  interpolating, and the check script asserts it against the buff overcap and against absurd
+  values. `Config.Buffs.overcap` used to claim otherwise, which was a documentation error, not a
+  behaviour one.
+- **[PROPS.md](PROPS.md), generated from the catalogue.** Every supported prop model, what each
+  exercise is worth, whether the model is actually placed anywhere on the map, and how to add your
+  own. Generated by `tools/props.py` so it cannot drift, and the check script fails if it is stale.
+- **Passive training from four real activities.** Sprinting on foot and riding a bicycle build
+  stamina, swimming builds stamina and lung capacity, and diving is the best outdoor source of
+  lung capacity there is. Every activity takes any number of stats, priced per kilometre or per
+  minute, and is entirely configurable.
+
+  Three separate mechanisms keep the equipment ahead, and the check script asserts the result
+  rather than trusting it: the caps hold the best possible passive day to 9% of a dedicated gym
+  day, a per-activity `ceiling` stops passive gains dead partway up each stat, and passive
+  activity does not reset the decay clock - so a player who only cycles loses ground.
+- **Five exercises deliberately off by default, and some props left out.** Dip bars, the skipping
+  rope, volleyball, basketball and bench sit-ups: the props exist and align fine, but nothing shipped
+  with the game does a dip, skips a rope or strikes a ball, so each fell back to a jog on the spot or a
+  chin-up in mid-air. Two `prop_muscle_bench` models and a rolled-up yoga mat are left out of their
+  exercises for the same reason.
+
+  **With no animation that matches the equipment, nothing beats something that reads as broken.** Each
+  is one `Config.ExtraEquipment` line away from coming back, with the reasoning written above it in
+  `shared/equipment.lua`.
+- **`/vsportscan` and `/vsportspot`.** No shipped catalogue can know what a custom MLO contains,
   so these print what your own map actually has and a ready-to-paste config line for it. An
   unknown model name costs nothing, so the shipped lists are deliberately generous.
 - **`Config.ExtraEquipment`.** Add equipment, or patch what ships, without editing a file under
@@ -32,8 +111,8 @@ First release.
   `MP0_STRENGTH`, `MP0_STAMINA` and `MP0_LUNG_CAPACITY` character stats are written, plus a
   small configured layer of melee damage, melee resistance, underwater time, swim speed, sprint
   speed, health regeneration and stamina recovery on top.
-- **The training allowance.** A character may gain 50 points across every stat per 25 hour
-  cycle, and no more than 25 into any single one. Once spent they are blocked until they
+- **The training allowance.** A character may gain 24 points across every stat per 25 hour
+  cycle, and no more than 12 into any single one. Once spent they are blocked until they
   recover. Rolling or block recovery modes.
 - **Whey**, and three other consumables. Whey cuts the 25 hour recovery wait to 8. Also a
   protein bar (refunds spent allowance), a pre-workout (multiplies gains) and a sports drink
@@ -41,14 +120,26 @@ First release.
   adding them to the inventory is a documented manual step.
 - **Fatigue.** The gain multiplier falls with each session in a 90 minute window and recovers
   with rest, so the first three workouts of an afternoon are worth more than the next twenty.
-- **Decay.** 10 points per day of not training, after one free day, computed from a timestamp
+- **Decay.** 5 points per day of not training, after one free day, computed from a timestamp
   so it runs while the player is offline. Per-stat rates, an absolute floor, optional peak
   protection, and job exemptions.
-- **Passive training.** Sprinting builds stamina and holding your breath underwater builds lung
-  capacity, both reported in batches and capped daily.
-- **Fifty server exports and their event twins**, covering reading, the allowance and recovery
+- **Seventy-two exports and their event twins**, covering reading, the allowance and recovery
   bypass, stat changes, buffs and debuffs, training multipliers, decay immunity, training
   blocks, direct effect overrides and exhaustion. Plus client exports and state bags.
+- **Condition mechanics, for a smoking, addiction or injury script.** A habit is not an event,
+  so alongside the buffs there are three ways to express being held back for as long as you have
+  it: `SetStatCeiling` (train all you like, your lung capacity stops at 55), `AddDrain` (lose
+  points per hour while it is in your system) and `SetDecayMultiplier` (a day off the gym costs
+  twenty rather than ten). All bounded by `Config.Buffs`, and none of them touches a stat at the
+  moment it is applied.
+- **`ApplyPackage` and `ClearPackage`.** A drug is rarely one effect; hand it a table of buffs,
+  multipliers, ceilings, drains, decay changes, exhaustion, allowance refunds and permanent stat
+  changes, and get back a record that `ClearPackage` can undo.
+- **A measured balance.** All three stats to 100% takes about a fortnight for a player who
+  trains daily and hits their prompts, ~16 days at 90% form, ~22 with a rest day a week, and
+  about five days for somebody who does nothing else - that last being the floor the allowance
+  sets. The figures come from a day-by-day simulation of the real progression functions, which
+  is part of the check script and fails if the headline moves.
 - **Native UI.** The workout HUD and the stats panel are drawn with DrawRect and DrawText.
   There is no `ui_page`, no CEF process and no NUI focus to get stuck.
 - **Three-tier performance model.** One loop at 1s when no equipment is near, one at 250ms when
@@ -94,11 +185,54 @@ Première version.
 ### Ajouté
 
 - **Détection automatique du matériel.** Le pool d'objets autour du joueur est comparé à un
-  catalogue de 20 exercices répartis sur 94 modèles de props : bancs, haltères, racks à charge
-  et à squat, kettlebells, barres de traction et de dips, tapis, sacs de frappe et poires de
-  vitesse, tapis de course, vélos d'appartement, rameurs, cordes à sauter, cordes
-  ondulatoires, yoga, étirements, presse à cuisses et machines à poulies.
-- **`/sportscan` et `/sportspot`.** Aucun catalogue fourni ne peut connaître le contenu d'un MLO
+  catalogue de 18 exercices répartis sur 31 modèles de props : bancs, haltères et toutes les barres
+  chargées, racks à squat, barres de traction et anneaux, tapis, sac de frappe, vélos d'appartement,
+  yoga et étirements, plus kettlebells, poires de vitesse, tapis de course, rameurs, cordes
+  ondulatoires, presse à cuisses, machines à poulies et travail au miroir pour les salles dont le MLO
+  les fournit.
+
+  Chaque nom de modèle a été vérifié dans le jeu avec `IsModelValid` : 85 noms qui circulent sur les
+  listes communautaires n'existent pas du tout dans les fichiers de base et ont été retirés plutôt que
+  laissés pour faire nombre.
+- **Chaque placement de corps mesuré en jeu, pas deviné.** Les 40 paires prop/exercice, chacune alignée
+  avec `/vsportprop` contre le prop réel, avec un `modelOverrides` là où un modèle frère diffère
+  vraiment : les deux portiques de plage placent leur origine à des endroits différents, et les trois
+  racks sont à trois hauteurs différentes. Là où un prop ne pouvait pas être mesuré de façon fiable, il
+  a été retiré plutôt que livré avec une approximation.
+- **`/vsporttour` passe en revue chaque animation sur chaque prop, une par une.** Chaque paire apparaît
+  à son tour avec son placement réel et attend un verdict : `1` correct, `2` faux. Le F8 ne liste que
+  les mauvaises à la fin, avec la commande pour corriger chacune. La seule façon de savoir si une
+  animation rend bien sur un prop est de la regarder, et voici quarante regards sans quarante commandes.
+- **`/vsportmissing` répond à « a-t-on oublié un prop ? » en interrogeant le jeu.** La commande passe
+  `IsModelValid` sur une liste de candidats et répond dans les deux sens : les modèles qui existent chez
+  vous et ne sont pas au catalogue, et ceux que le catalogue revendique et que votre build n'a pas. Une
+  liste ne peut pas répondre à ça, tous les dumps de props publiés étant incomplets. Ajoutez les noms de
+  votre MLO dans `Config.Debug.candidateModels` et le jeu les confirmera.
+- **Ajouter du matériel depuis le jeu, sans fichier à modifier ni redémarrage.** Placez-vous dans votre
+  salle, regardez la machine, et `/vsportadd treadmill`. La commande prend le prop que vous **regardez**,
+  pas un nom que vous tapez, vérifie que le jeu possède ce modèle, et l'ajoute en direct pour tous les
+  joueurs. Puis `/vsportprop treadmill` pour aligner le corps, et **K** enregistre pour tout le monde.
+
+  Les ajouts vivent dans `data/custom.json`, possédé par le serveur et poussé à chaque client.
+  `/vsportexport` en fait un bloc `Config.ExtraEquipment` quand un ajout a fait ses preuves ;
+  `/vsportcustom`, `/vsportremove`, `/vsportreload` et `/vsportreset` couvrent le reste.
+- **`/vsportitems` écrit le bloc de votre inventaire**, généré depuis `Config.Items` pour qb-core,
+  ox_inventory ou ESX. Chaque item porte son `label`, sa `description`, son `weight` et son `image` :
+  renommer `whey` en `proteine` est une modification au lieu de deux, et le bloc documenté ne peut plus
+  être en désaccord avec la config.
+- **Les icônes des items**, en PNG prêtes à l'emploi et en sources SVG, avec le chemin du dossier
+  d'images pour cinq inventaires courants et un script sans dépendance pour les régénérer.
+- **Les commandes de développement sont réservées aux admins, côté serveur.** Deux d'entre elles
+  téléportent, donc laissées ouvertes elles offraient un téléport gratuit à chaque joueur. Le contrôle
+  passe par `Bridge.isAdmin`, décidé sur le serveur et poussé au client, qui refuse tout jusqu'à
+  recevoir une réponse. Le script de vérification échoue si une commande perd sa protection.
+- **Les plafonds d'effets sont durs, et c'est prouvé.** Aucun empilement de bonus, de drogues ou de
+  commandes admin ne peut pousser un effet au-delà de son `max` configuré, et le script de vérification
+  l'impose contre le dépassement de bonus comme contre des valeurs absurdes.
+- **[PROPS.md](PROPS.md), généré depuis le catalogue.** Chaque modèle pris en charge, ce que vaut chaque
+  exercice, si le modèle est réellement placé sur la carte, et comment ajouter les vôtres. Généré par
+  `tools/props.py` pour qu'il ne puisse pas dériver.
+- **`/vsportscan` et `/vsportspot`.** Aucun catalogue fourni ne peut connaître le contenu d'un MLO
   personnalisé : ces commandes affichent ce que votre carte contient réellement et une ligne de
   configuration prête à coller. Un nom de modèle inconnu ne coûte rien, les listes fournies sont
   donc volontairement généreuses.
@@ -114,8 +248,8 @@ Première version.
   vraies stats de personnage `MP0_STRENGTH`, `MP0_STAMINA` et `MP0_LUNG_CAPACITY` sont écrites,
   plus une petite couche configurable de dégâts au corps à corps, de résistance, de temps sous
   l'eau, de vitesse de nage, de sprint, de régénération et de récupération d'endurance.
-- **Le quota d'entraînement.** Un personnage peut gagner 50 points toutes statistiques
-  confondues par cycle de 25 heures, et pas plus de 25 dans une seule. Une fois épuisé, il est
+- **Le quota d'entraînement.** Un personnage peut gagner 24 points toutes statistiques
+  confondues par cycle de 25 heures, et pas plus de 12 dans une seule. Une fois épuisé, il est
   bloqué jusqu'à récupération. Modes de récupération glissant ou par bloc.
 - **La whey**, et trois autres consommables. La whey ramène l'attente de 25 heures à 8. Aussi
   une barre protéinée (rembourse du quota), un pre-workout (multiplie les gains) et une boisson
@@ -124,16 +258,39 @@ Première version.
 - **Fatigue.** Le multiplicateur de gain baisse à chaque séance dans une fenêtre de 90 minutes et
   remonte au repos : les trois premières séances d'un après-midi valent plus que les vingt
   suivantes.
-- **Perte de niveau.** 10 points par jour sans entraînement, après un jour de grâce, calculée
+- **Perte de niveau.** 5 points par jour sans entraînement, après un jour de grâce, calculée
   depuis un horodatage : elle tourne donc hors ligne. Taux par statistique, plancher absolu,
   protection du record optionnelle, et exemptions par métier.
-- **Entraînement passif.** Le sprint travaille l'endurance et l'apnée sous l'eau travaille les
-  poumons, tous deux rapportés par lots et plafonnés quotidiennement.
-- **Cinquante exports serveur et leurs équivalents en événements**, couvrant la lecture, le
+- **Entraînement passif, sur quatre activités réelles.** Le sprint à pied et le vélo montent
+  l'endurance, la nage monte l'endurance et l'apnée, et la plongée est la meilleure source d'apnée en
+  extérieur. Chaque activité accepte autant de statistiques qu'on veut, tarifée au kilomètre ou à la
+  minute, et reste entièrement configurable.
+
+  Trois mécanismes distincts gardent l'équipement devant, et le script de vérification impose le
+  résultat : les plafonds tiennent la meilleure journée passive possible à 11 % d'une journée de salle,
+  un `ceiling` par activité arrête net les gains passifs à mi-parcours de chaque statistique, et
+  l'activité passive ne remet pas à zéro le compteur de perte, donc qui ne fait que du vélo recule.
+- **Soixante-douze exports et leurs équivalents en événements**, couvrant la lecture, le
   quota et le contournement de la récupération, les changements de statistiques, les bonus et
   malus, les multiplicateurs d'entraînement, l'immunité à la perte, le blocage de
   l'entraînement, les surcharges d'effet directes et l'épuisement. Plus les exports client et
   les state bags.
+- **Mécanismes de condition, pour un script de fumette, d'addiction ou de blessure.** Une
+  habitude n'est pas un événement : à côté des bonus, trois façons d'exprimer le fait d'être
+  bridé tant qu'on l'a. `SetStatCeiling` (entraînez-vous tant que vous voulez, votre apnée
+  plafonne à 55), `AddDrain` (perdre des points par heure tant que c'est dans le système) et
+  `SetDecayMultiplier` (un jour sans salle coûte vingt au lieu de dix). Tous bornés par
+  `Config.Buffs`, et aucun ne touche une statistique au moment où il est posé.
+- **`ApplyPackage` et `ClearPackage`.** Une drogue est rarement un seul effet : passez une table
+  de bonus, multiplicateurs, plafonds, drains, changements de perte, épuisement, remboursements
+  de quota et modifications définitives, et récupérez un enregistrement que `ClearPackage` sait
+  annuler.
+- **Un équilibrage mesuré.** Les trois statistiques à 100 % demandent environ deux semaines à un
+  joueur qui s'entraîne chaque jour et réussit ses touches, ~16 jours à 90 % de forme, ~22 avec
+  un jour de repos par semaine, et environ cinq jours à qui ne fait rien d'autre - ce dernier
+  étant le plancher fixé par le quota. Les chiffres viennent d'une simulation jour par jour des
+  vraies fonctions de progression, intégrée au script de vérification, qui échoue si le chiffre
+  principal bouge.
 - **Interface native.** Le HUD de séance et le panneau de statistiques sont dessinés avec
   DrawRect et DrawText. Pas de `ui_page`, pas de processus CEF, pas de focus NUI à débloquer.
 - **Modèle de performance à trois paliers.** Une boucle à 1 s quand aucun équipement n'est

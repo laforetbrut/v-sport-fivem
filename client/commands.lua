@@ -59,11 +59,39 @@ if Config.Commands.stats and Config.Commands.stats ~= '' then
 end
 
 -- ---------------------------------------------------------------------------------------
+-- /vsportdev
+-- ---------------------------------------------------------------------------------------
+--
+-- Re-ask the server whether this player may use the developer tools. Not restricted itself, and
+-- it does not need to be: the ANSWER comes from the server, which computes it fresh every time,
+-- so a non-admin asking repeatedly is told no repeatedly.
+--
+-- It exists for the case that would otherwise need a reconnect: an admin promoted mid-session, or
+-- one whose ace comes from a permissions resource that finished loading after this one.
+
+if Config.Commands.dev and Config.Commands.dev ~= '' then
+    RegisterCommand(Config.Commands.dev, function()
+        TriggerServerEvent('vsport:server:RequestDevAccess')
+        Wait(500)
+
+        if State.devAllowed then
+            Compat.notify(L('cmd.dev_granted'), 'success')
+        else
+            Compat.notify(L('notify.no_permission'), 'error')
+        end
+    end, false)
+
+    TriggerEvent('chat:addSuggestion', '/' .. Config.Commands.dev, L('cmd.dev'))
+end
+
+-- ---------------------------------------------------------------------------------------
 -- /sportinfo
 -- ---------------------------------------------------------------------------------------
 
 if Config.Commands.info and Config.Commands.info ~= '' then
     RegisterCommand(Config.Commands.info, function()
+        if not State.devGate() then return end
+
         print('^5================ v-sport ================^7')
 
         for _, row in ipairs(Compat.report()) do
@@ -101,6 +129,8 @@ end
 
 if Config.Commands.scan and Config.Commands.scan ~= '' then
     RegisterCommand(Config.Commands.scan, function(_, args)
+        if not State.devGate() then return end
+
         local radius = tonumber(args and args[1]) or 20.0
         local coords = GetEntityCoords(PlayerPedId())
         local found = {}
@@ -151,6 +181,162 @@ if Config.Commands.scan and Config.Commands.scan ~= '' then
         print('^3  A model marked "-" is not in the catalogue. Add it to^7')
         print('^3  Config.ExtraEquipment in config.lua to make it usable.^7')
         print('^3  An unnamed hash can be added as a number instead of a string.^7')
+
+        --[[
+            WHAT THE SCAN CANNOT SEE, said out loud.
+
+            This list comes from GetGamePool('CObject'), which holds spawned objects. A prop that is
+            part of the map or baked into an MLO is not in it - so it is absent from everything above,
+            absent from Detect, and yet a TARGET resource will happily offer an exercise on it,
+            because a target uses its own raycast.
+
+            That combination produced three separate reports that each looked like a different bug:
+            "the dev tool does not see these props", "it offers the bench press on something not in
+            the list", and "the tuner cannot find it". One line here would have answered all three.
+        ]]
+        local aimedHit, aimedModel = nil, nil
+        do
+            local ped = PlayerPedId()
+            local from = GetGameplayCamCoord()
+            local rotation = GetGameplayCamRot(2)
+            local pitch, yaw = math.rad(rotation.x), math.rad(rotation.z)
+            local flat = math.abs(math.cos(pitch))
+            local reach = 14.0
+
+            -- Flag 16, objects only. Flag 1 adds map geometry and returns a handle that passes
+            -- DoesEntityExist and then crashes GetEntityModel inside the streaming DLL; that is
+            -- not a theory, it took the client down once.
+            local ray = StartShapeTestLosProbe(from.x, from.y, from.z,
+                from.x - math.sin(yaw) * flat * reach,
+                from.y + math.cos(yaw) * flat * reach,
+                from.z + math.sin(pitch) * reach,
+                16, ped, 4)
+
+            local status, hit, _, _, entity = GetShapeTestResult(ray)
+            local tries = 0
+            while status == 1 and tries < 20 do
+                Wait(0)
+                tries = tries + 1
+                status, hit, _, _, entity = GetShapeTestResult(ray)
+            end
+
+            if hit == 1 and entity and entity ~= 0 and DoesEntityExist(entity) then
+                local ok, model = pcall(GetEntityModel, entity)
+                if ok and type(model) == 'number' and model ~= 0 then
+                    aimedHit, aimedModel = entity, model
+                end
+            end
+        end
+
+        print('')
+        print('^5  WHAT YOU ARE LOOKING AT^7')
+
+        if not aimedHit then
+            print('  no OBJECT within 14m of your crosshair')
+            print('  (map and MLO geometry is not an object and never appears here)')
+        else
+            local hash = aimedModel
+            local inPool = false
+            for _, entity in ipairs(GetGamePool('CObject')) do
+                if entity == aimedHit then inPool = true break end
+            end
+
+            print(('  model      %s'):format(modelName(hash, aimedHit)
+                or ('hash ' .. tostring(hash))))
+            print(('  catalogue  %s'):format(Equipment.byModel[hash]
+                and table.concat(Equipment.byModel[hash], ', ') or 'not in it'))
+            print(('  in the object pool  %s'):format(inPool and 'yes' or
+                '^3NO - it is map or MLO geometry^7'))
+
+            if not inPool then
+                print('^3  That is why it is missing from the list above and from /vsportscan in')
+                print('^3  general: this resource scans spawned objects. A target resource uses its')
+                print('^3  own raycast and WILL offer an exercise on it. /vsportprop now finds it')
+                print('^3  too, by looking where you look.^7')
+            end
+        end
+
+        --[[
+            WHY IS THE PROMPT OFFERING THAT?
+
+            The question a scan could never answer, and the one that actually gets asked. Listing
+            what is nearby does not say which of it the prompt has chosen, and when the answer is
+            "something four metres behind you" the report reads as though the prompt is about the
+            machine in front of you.
+
+            So it says outright: this exact entity, this far away, this far off your aim, and where
+            the body will be put. If the model named here is not the thing you are looking at, that
+            is the whole bug in one line.
+        ]]
+        print('')
+        print('^5  WHAT THE PROMPT IS CURRENTLY TARGETING^7')
+
+        local target = Detect.closestVisible()
+        if not target then
+            print('  nothing - no prompt should be showing')
+        else
+            local hash = target.entity and GetEntityModel(target.entity) or nil
+            local name = hash and modelName(hash, target.entity) or nil
+
+            print(('  model      %s'):format(name or ('hash ' .. tostring(hash))))
+            print(('  offers     %s'):format(table.concat(target.keys or {}, ', ')))
+            print(('  distance   %.2fm'):format(math.sqrt(target.distanceSquared)))
+            print(('  kind       %s'):format(
+                target.spot and 'a Config.Spots coordinate, not an object' or 'a world object'))
+
+            if target.entity and DoesEntityExist(target.entity) then
+                local at = GetEntityCoords(target.entity)
+                print(('  prop at    %.2f %.2f %.2f'):format(at.x, at.y, at.z))
+
+                -- Where the body will actually end up, per the entry the prompt would start.
+                local first = (target.keys or {})[1]
+                local entry = first and Equipment.get(first)
+                if entry then
+                    local staging = Equipment.staging(entry, hash)
+                    if staging.placeAnim and staging.animOffset then
+                        local body = GetOffsetFromEntityInWorldCoords(target.entity,
+                            staging.animOffset.x, staging.animOffset.y, staging.animOffset.z)
+                        local ok, ground = GetGroundZFor_3dCoord(body.x, body.y, body.z + 2.0, false)
+
+                        --[[
+                            THE ATTACH POINT, NOT THE FEET, AND THIS LINE USED TO CLAIM OTHERWISE.
+
+                            animOffset positions the ped's attach origin, which sits around the
+                            pelvis - roughly a metre above the soles on a standing body. The first
+                            version of this readout compared that height against the ground and
+                            printed "BELOW IT, the offset is too low" under 15 cm, which fires on
+                            perfectly correct values: a standing body's pelvis belongs about a metre
+                            up.
+
+                            There is no honest verdict available here. The relationship between the
+                            attach point and the feet depends on the posture the clip puts the body
+                            in - a metre standing, near zero lying down - and this command runs with
+                            no session and no attached ped to read foot bones from.
+
+                            So it reports the number and says what the number is. The tuner's own
+                            height row measures the actual foot bones and is the thing to trust.
+                        ]]
+                        print(('  body attach point -> %.2f %.2f %.2f  (animOffset %.2f %.2f %.2f)')
+                            :format(body.x, body.y, body.z,
+                                staging.animOffset.x, staging.animOffset.y, staging.animOffset.z))
+
+                        if ok then
+                            print(('  that point is %+.2fm above the ground there')
+                                :format(body.z - ground))
+                            print('  it is the PELVIS, not the feet: about 1m up for a standing')
+                            print('  clip, near zero for one lying down. Judge it in /'
+                                .. (Config.Commands.tune or 'vsportprop') .. ', which reads the')
+                            print('  actual foot bones.')
+                        end
+                    else
+                        print('  this exercise places no animation - the scenario decides')
+                    end
+                end
+            else
+                print('  the entity no longer exists - the scan is stale')
+            end
+        end
+
         print('^5=================================================^7')
 
         Compat.notify(('%d objects listed in the console (F8)'):format(#found), 'primary')
@@ -167,6 +353,8 @@ end
 
 if Config.Commands.spot and Config.Commands.spot ~= '' then
     RegisterCommand(Config.Commands.spot, function(_, args)
+        if not State.devGate() then return end
+
         local key = args and args[1]
 
         if not key or key == '' then
@@ -198,6 +386,145 @@ if Config.Commands.spot and Config.Commands.spot ~= '' then
         { name = 'equipment', help = table.concat(Equipment.keys, ' | ') },
     })
 end
+
+-- ---------------------------------------------------------------------------------------
+-- /vsportoffset
+-- ---------------------------------------------------------------------------------------
+--
+-- Tuning a `modelOverrides` entry by guesswork means restarting the resource for every
+-- attempt. This prints the exact block: stand where the player should be, face the prop, run
+-- it, paste the result.
+
+if Config.Commands.offset and Config.Commands.offset ~= '' then
+    RegisterCommand(Config.Commands.offset, function()
+        if not State.devGate() then return end
+
+        local ped = PlayerPedId()
+        local coords = GetEntityCoords(ped)
+
+        -- The nearest prop the catalogue knows about, whatever exercise it belongs to.
+        local best, bestDistance, bestHash = nil, math.huge, nil
+
+        for _, entity in ipairs(GetGamePool('CObject')) do
+            local hash = GetEntityModel(entity)
+            if Equipment.byModel[hash] then
+                local at = GetEntityCoords(entity)
+                local dx, dy, dz = at.x - coords.x, at.y - coords.y, at.z - coords.z
+                local distanceSquared = dx * dx + dy * dy + dz * dz
+
+                if distanceSquared < bestDistance then
+                    best, bestDistance, bestHash = entity, distanceSquared, hash
+                end
+            end
+        end
+
+        if not best then
+            print('^3[v-sport] no known sport prop nearby. Run /' ..
+                (Config.Commands.scan or 'vsportscan') .. ' to see what is around you.^7')
+            Compat.notify('No known sport prop nearby', 'error')
+            return
+        end
+
+        -- GetOffsetFromEntityGivenWorldCoords is the exact inverse of the
+        -- GetOffsetFromEntityInWorldCoords the session uses to place the player, so what this
+        -- prints is what will be applied - no sign or axis guesswork.
+        local offset = GetOffsetFromEntityGivenWorldCoords(best, coords.x, coords.y, coords.z)
+        local heading = GetEntityHeading(ped) - GetEntityHeading(best)
+
+        -- Normalise into 0-360 so the printed number reads the way an operator expects.
+        heading = heading % 360.0
+
+        local name = modelName(bestHash, best) or ('[' .. tostring(bestHash) .. ']')
+        local exercises = table.concat(Equipment.byModel[bestHash] or {}, ', ')
+
+        print('^5==== v-sport: paste into the entry\'s modelOverrides ====^7')
+        print(('  model    %s   (%.2fm away)'):format(name, math.sqrt(bestDistance)))
+        print(('  offers   %s'):format(exercises))
+        print('')
+        print('        modelOverrides = {')
+        print(("            ['%s'] = {"):format(name))
+        print(('                offset = vector3(%.2f, %.2f, %.2f),'):format(
+            offset.x, offset.y, offset.z))
+        print(('                heading = %.1f,'):format(heading))
+        print('                snap = true,')
+        print('            },')
+        print('        },')
+        print('^3  Stand exactly where the player should end up, facing the way they should^7')
+        print('^3  face, and run this again if it is not right yet.^7')
+        print('^5========================================================^7')
+
+        Compat.notify(('Offset for %s printed to F8'):format(name), 'success')
+    end, false)
+
+    TriggerEvent('chat:addSuggestion', '/' .. Config.Commands.offset, L('cmd.offset'))
+end
+
+-- ---------------------------------------------------------------------------------------
+-- Events, for a radial menu or any other resource
+-- ---------------------------------------------------------------------------------------
+--
+-- qb-radialmenu, ox_lib's radial, a keybind resource or an NPC dialogue can all fire these.
+-- They are net events rather than exports so that a resource which loads BEFORE this one can
+-- still reference them - an export has to exist at the moment it is called, an event does not.
+--
+-- See API.md for the qb-radialmenu block to paste.
+
+RegisterNetEvent('vsport:client:OpenPanel', function()
+    Menu.open()
+end)
+
+RegisterNetEvent('vsport:client:ClosePanel', function()
+    Menu.close()
+end)
+
+RegisterNetEvent('vsport:client:TogglePanel', function()
+    Menu.toggle()
+end)
+
+--- Start a workout on the nearest usable equipment. `key` optionally names which exercise when
+--- the prop offers several.
+RegisterNetEvent('vsport:client:StartNearest', function(key)
+    local candidate = Detect.closest()
+
+    if not candidate then
+        Compat.notify(L('refuse.distance'), 'error')
+        return
+    end
+
+    Session.start(candidate, key)
+end)
+
+RegisterNetEvent('vsport:client:StopSession', function()
+    Session.stop('event')
+end)
+
+--[[
+    Train with no equipment at all, wherever the player is standing.
+
+    This is the one a radial menu wants for push-ups and yoga: there is no prop in the world to
+    walk up to and press E on, so the menu IS the interaction. `key` is an exercise from
+    Config.Anywhere.allowed, and the server re-checks it against its own copy of that list.
+]]
+RegisterNetEvent('vsport:client:StartAnywhere', function(key)
+    Session.startAnywhere(key)
+end)
+
+-- Shorthands, so a radial menu entry needs no argument plumbing at all.
+RegisterNetEvent('vsport:client:PushUps', function()
+    Session.startAnywhere('push_ups')
+end)
+
+RegisterNetEvent('vsport:client:SitUps', function()
+    Session.startAnywhere('sit_ups')
+end)
+
+RegisterNetEvent('vsport:client:Yoga', function()
+    Session.startAnywhere('yoga')
+end)
+
+RegisterNetEvent('vsport:client:Stretch', function()
+    Session.startAnywhere('stretching')
+end)
 
 -- ---------------------------------------------------------------------------------------
 -- CLIENT EXPORTS
@@ -259,6 +586,23 @@ exports('StartNearest', function(key)
     local candidate = Detect.closest()
     if not candidate then return false end
     return Session.start(candidate, key)
+end)
+
+--- Start an exercise that needs no equipment, where the player is standing. Returns whether one
+--- started; it shows the player the reason when it refuses.
+exports('StartAnywhere', function(key)
+    return Session.startAnywhere(key)
+end)
+
+--- The exercises that can be started in the open, for building a menu:
+--- { { key, label, description, cooldownLeft }, ... }
+exports('GetAnywhereExercises', function()
+    return Session.anywhereList()
+end)
+
+--- Whether one specific exercise can be done without equipment.
+exports('IsAnywhereExercise', function(key)
+    return Session.isAnywhere(key)
 end)
 
 --- Everything in detection range, as a plain list. Allocates, so do not call it per frame.

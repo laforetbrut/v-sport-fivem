@@ -199,7 +199,7 @@ end
 -- Request
 -- ---------------------------------------------------------------------------------------
 
-RegisterNetEvent('vsport:server:RequestSession', function(requestId, key, coords)
+RegisterNetEvent('vsport:server:RequestSession', function(requestId, key, coords, anywhere)
     local src = source
 
     local function answer(token, refusal)
@@ -226,6 +226,30 @@ RegisterNetEvent('vsport:server:RequestSession', function(requestId, key, coords
     if not entry then
         reject(src, 'unknown equipment', key)
         return answer(nil, nil)
+    end
+
+    --[[
+        Training with no equipment.
+
+        The client says "this one needs no equipment"; the server does not take its word for it.
+        The key is checked against the server's own Config.Anywhere.allowed, so a client asking
+        to bench press in mid-air, or to use a piece of equipment nobody is near, is refused
+        here rather than trusted.
+
+        This is also the one case where the distance check below is meaningless - the coordinates
+        ARE the player - so the allowance, the cooldowns and this list are what bound it.
+    ]]
+    local isAnywhere = anywhere == true
+
+    if isAnywhere then
+        if not Config.Anywhere.enabled then
+            return answer(nil, L('refuse.no_equipment'))
+        end
+
+        if not Sport.contains(Config.Anywhere.allowed, key) then
+            reject(src, 'asked to do a prop exercise with no equipment', key)
+            return answer(nil, L('refuse.no_equipment'))
+        end
     end
 
     -- --- One at a time -------------------------------------------------------------------
@@ -264,9 +288,13 @@ RegisterNetEvent('vsport:server:RequestSession', function(requestId, key, coords
     end
 
     -- --- Cooldown and rate ------------------------------------------------------------------
-    local left = cooldownLeft(src, key)
-    if left > 0 then
-        return answer(nil, L('notify.cooldown', Sport.duration(left)))
+    local checkCooldown = (not isAnywhere) or Config.Anywhere.respectCooldowns ~= false
+
+    if checkCooldown then
+        local left = cooldownLeft(src, key)
+        if left > 0 then
+            return answer(nil, L('notify.cooldown', Sport.duration(left)))
+        end
     end
 
     -- --- Requirements -------------------------------------------------------------------
@@ -318,6 +346,7 @@ RegisterNetEvent('vsport:server:RequestSession', function(requestId, key, coords
         coords = { x = x, y = y, z = z },
         startedAt = Sport.now(),
         startedAtMs = GetGameTimer(),
+        anywhere = isAnywhere,
     }
     bySource[src] = token
 
@@ -369,7 +398,27 @@ RegisterNetEvent('vsport:server:FinishSession', function(token, payload)
     -- Measured on the SERVER's clock. The client also reports its own elapsed time, and that
     -- number is never trusted for anything - it is only logged when the two disagree.
     local elapsedMs = (GetGameTimer() - session.startedAtMs)
-    local expected = Equipment.minimumDurationMs(entry)
+
+    --[[
+        HOW MANY REPS, READ BEFORE THE DURATION IS JUDGED.
+
+        This used to be parsed further down, and the duration check above it compared the elapsed
+        time against the minimum for a FULL set. So every session that ended early - four misses in a
+        row, or the player holding the cancel key - was rejected as impossibly fast and paid nothing,
+        while the code fifty lines below carefully worked out what a partial set was worth. The
+        rejection came first, so the partial-payment logic could never run.
+
+        A payload claiming more reps than the equipment has is a client that edited the config.
+    ]]
+    local reps = math.floor(Sport.clamp(payload.reps, 0, Equipment.reps(entry), 0))
+
+    if reps <= 0 then
+        TriggerClientEvent('vsport:client:SessionResult', src, {},
+            L('session.nothing_gained'))
+        return
+    end
+
+    local expected = Equipment.minimumDurationMs(entry, reps)
 
     local minFactor = tonumber(Config.Security.minDurationFactor) or 0.75
     local maxFactor = tonumber(Config.Security.maxDurationFactor) or 4.0
@@ -406,22 +455,20 @@ RegisterNetEvent('vsport:server:FinishSession', function(token, payload)
         end
     end
 
-    -- --- Reps ---------------------------------------------------------------------------
-    -- A payload claiming more reps than the equipment has is a client that edited the config.
-    local reps = math.floor(Sport.clamp(payload.reps, 0, Equipment.reps(entry), 0))
+    -- --- Quality ------------------------------------------------------------------------
     local quality = Sport.clamp(payload.quality, 0.0, 1.0, 0.0)
-
-    if reps <= 0 then
-        TriggerClientEvent('vsport:client:SessionResult', src, {},
-            L('session.nothing_gained'))
-        return
-    end
 
     -- A session cut short pays for the part that was done. The quality already reflects only
     -- the keys that were actually asked for, so this is the only place the missing reps are
     -- accounted for.
     local completion = reps / Equipment.reps(entry)
     quality = quality * completion
+
+    -- Exercises done with no equipment can be worth less than the same exercise on a mat, if
+    -- the operator wants a reason to go to a gym. Ships at 1.0: a push-up is a push-up.
+    if session.anywhere then
+        quality = quality * Sport.clamp(Config.Anywhere.gainScale, 0.0, 1.0, 1.0)
+    end
 
     -- --- Pay ------------------------------------------------------------------------------
     local gains, note = Profiles.awardSession(src, entry, quality)
@@ -450,84 +497,143 @@ end)
 -- ---------------------------------------------------------------------------------------
 
 --[[
-    Sprinting and diving, reported in batches by client/passive.lua.
+    Sprinting, cycling, swimming and diving, reported in batches by client/passive.lua.
 
-    Held to the same standard as a session: the amounts are clamped to what is physically
-    possible in the reporting interval, and the daily caps are the server's own count rather
-    than anything the client sent.
+    Held to the same standard as a session. Nothing the client sends is trusted:
+
+      * every amount is clamped to what the reporting interval could physically hold, worked out
+        from the activity's own `maxSpeed` rather than from a number hidden in here
+      * the caps - per activity, and across the whole section - are the server's own running
+        count, not anything the client mentioned
+      * the ceiling is checked against the stat the SERVER holds
+      * what survives goes through the allowance ledger, so running across the map is not a way
+        around the fifty-points-per-twenty-five-hours rule
+
+    The activity list is data. Adding a fifth means a row here and a row in client/passive.lua,
+    with no other change on either side.
 ]]
-local passiveDay = {}           -- src -> { stat -> points today, resetAt = unix }
+local passiveDay = {}           -- src -> { total = points today, [stat] = points, resetAt = unix }
+
+--[[
+    unit  'distance' converts metres to kilometres, 'time' converts seconds to minutes. That
+          division is the only difference between the four, so it is the only thing stored.
+    fallbackMax  the speed used to size the honesty ceiling when the activity's config has no
+          `maxSpeed`. For a timed activity it is unused: a dive cannot exceed the wall clock.
+]]
+local PASSIVE_ACTIVITIES = {
+    { key = 'running',  field = 'runMetres',   unit = 'distance', fallbackMax = 12.0 },
+    { key = 'cycling',  field = 'bikeMetres',  unit = 'distance', fallbackMax = 18.0 },
+    { key = 'swimming', field = 'swimMetres',  unit = 'distance', fallbackMax = 4.0 },
+    { key = 'diving',   field = 'diveSeconds', unit = 'time' },
+}
+
+--- The most this activity could honestly have accumulated in one reporting interval. Doubled,
+--- because a report can arrive late and carry two intervals' worth rather than one.
+local function honestCeiling(activity, cfg, interval)
+    if activity.unit == 'time' then return interval * 2 end
+
+    local top = tonumber(cfg.maxSpeed) or activity.fallbackMax or 12.0
+    return interval * top * 2
+end
 
 RegisterNetEvent('vsport:server:Passive', function(payload)
     local src = source
     if type(payload) ~= 'table' then return end
+    if not Config.Passive.enabled then return end
 
     local profile = Profiles.get(src)
     if not profile then return end
 
     local now = Sport.now()
     local interval = math.max(5, tonumber(Config.Passive.reportInterval) or 30)
+    local scale = tonumber(Config.Passive.globalScale) or 1.0
 
     local day = passiveDay[src]
     if not day or now >= (day.resetAt or 0) then
-        day = { resetAt = now + 86400 }
+        day = { resetAt = now + 86400, total = 0.0 }
         passiveDay[src] = day
     end
 
+    -- The whole-section cap, as room remaining rather than as a total, so every activity below
+    -- draws from the same pool in the order they are declared.
+    local totalCap = tonumber(Config.Passive.dailyCapTotal) or 0
+    local totalRoom = totalCap > 0 and math.max(0.0, totalCap - (day.total or 0.0)) or math.huge
+
     local gains = {}
 
-    -- --- Running -----------------------------------------------------------------------
-    local running = Config.Passive.running
-    if running and running.enabled then
-        -- The ceiling is the interval times a sprint nobody can beat. Anything above it is
-        -- a teleport, a vehicle the client missed, or a lie.
-        local ceiling = interval * 12.0 * 2
-        local metres = Sport.clamp(payload.metres, 0, ceiling, 0)
+    for _, activity in ipairs(PASSIVE_ACTIVITIES) do
+        local cfg = Config.Passive[activity.key]
 
-        if metres > 0 then
-            local points = (metres / 1000.0) * (tonumber(running.perKilometre) or 0)
-            local cap = tonumber(running.dailyCap) or 0
-            local key = running.stat or 'stamina'
+        if cfg and cfg.enabled and totalRoom > 0 then
+            local amount = Sport.clamp(payload[activity.field], 0,
+                honestCeiling(activity, cfg, interval), 0)
 
-            if cap > 0 then
-                points = math.min(points, math.max(0, cap - (day[key] or 0)))
-            end
+            if amount > 0 then
+                local divisor = activity.unit == 'time' and 60.0 or 1000.0
+                local units = amount / divisor
 
-            if points > 0 then
-                day[key] = (day[key] or 0) + points
-                gains[key] = (gains[key] or 0) + points
-            end
-        end
-    end
+                -- This activity's own remaining allowance for the day, across all its stats.
+                local ownCap = tonumber(cfg.dailyCap) or 0
+                local ownRoom = ownCap > 0
+                    and math.max(0.0, ownCap - (day[activity.key] or 0.0))
+                    or math.huge
 
-    -- --- Diving ------------------------------------------------------------------------
-    local diving = Config.Passive.diving
-    if diving and diving.enabled then
-        local seconds = Sport.clamp(payload.diveSeconds, 0, interval * 2, 0)
+                for statKey, perUnit in pairs(cfg.gains or {}) do
+                    local def = Stats.def(statKey)
 
-        if seconds > 0 then
-            local points = (seconds / 60.0) * (tonumber(diving.perMinute) or 0)
-            local cap = tonumber(diving.dailyCap) or 0
-            local key = diving.stat or 'breath'
+                    --[[
+                        THE CEILING, AND IT IS CHECKED AGAINST THE SERVER'S OWN VALUE.
 
-            if cap > 0 then
-                points = math.min(points, math.max(0, cap - (day[key] or 0)))
-            end
+                        Passive training stops dead at this figure rather than tapering, so the
+                        rule is easy to explain to a player: swimming takes your lungs to 75 and
+                        the rest is yoga. A stat already at or above it earns nothing here, which
+                        also means the arithmetic below never has to think about partial credit.
+                    ]]
+                    local ceiling = tonumber(cfg.ceiling)
+                        or tonumber(Config.Passive.ceiling) or 100.0
+                    local held = tonumber(profile.stats[statKey]) or 0.0
 
-            if points > 0 then
-                day[key] = (day[key] or 0) + points
-                gains[key] = (gains[key] or 0) + points
+                    if def and held < ceiling then
+                        local points = units * (tonumber(perUnit) or 0.0) * scale
+
+                        -- Three bounds, cheapest first: the stat's own headroom to the ceiling,
+                        -- this activity's day, and the section's day.
+                        points = math.min(points, ceiling - held, ownRoom, totalRoom)
+
+                        if points > 0 then
+                            day[activity.key] = (day[activity.key] or 0.0) + points
+                            day.total = (day.total or 0.0) + points
+                            ownRoom = ownRoom - points
+                            totalRoom = totalRoom - points
+
+                            gains[statKey] = (gains[statKey] or 0.0) + points
+                        end
+                    end
+                end
             end
         end
     end
 
     if not next(gains) then return end
 
-    -- Passive training goes through the allowance like everything else. Running across the
-    -- map is not a way around the recovery rule.
     for key, points in pairs(gains) do
-        Profiles.changeStat(src, key, Sport.round(points, 3), 'add', true)
+        gains[key] = Sport.round(points, 3)
+        Profiles.changeStat(src, key, gains[key], 'add', true)
     end
+
+    --[[
+        Whether that counted as training, for the decay clock and for fatigue.
+
+        FALSE by default, and it is the single most important number in Config.Passive: with it
+        off, a player who cycles all day has earned a little stamina and has still not trained,
+        so the ten-a-day decay keeps running against a two-a-day cap and they lose ground. That
+        is what stops passive activity from replacing the equipment.
+    ]]
+    if Config.Passive.countsAsTraining then
+        Profiles.markTrained(src, gains)
+    end
+
+    TriggerClientEvent('vsport:client:PassiveGain', src, gains)
 
     Sport.debug(('%s passive: %s'):format(GetPlayerName(src) or src, json.encode(gains)))
 end)

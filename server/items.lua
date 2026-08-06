@@ -294,8 +294,184 @@ exports('GetItems', function()
                 amount = entry.amount,
                 duration = entry.duration,
                 cooldown = entry.cooldown,
+                label = entry.label,
+                description = entry.description,
+                weight = entry.weight,
+                image = entry.image,
             }
         end
     end
     return out
+end)
+
+-- ---------------------------------------------------------------------------------------
+-- /vsportitems - the paste-ready blocks, generated from the config
+-- ---------------------------------------------------------------------------------------
+--
+-- Registering these items is the one installation step this resource CANNOT do for itself: every
+-- inventory keeps its item list somewhere different, and two of them keep it in a file that an
+-- update overwrites.
+--
+-- What it can do is stop the block being something you transcribe by hand out of a README. This
+-- generates it from Config.Items, so renaming `whey` to `proteine` or changing a weight means
+-- running the command again rather than editing a file and then remembering which one.
+
+--- Escape a single-quoted Lua string. A description with an apostrophe in it would otherwise
+--- produce a block that does not parse, which is a poor first impression for an install step.
+local function luaQuote(text)
+    return tostring(text or ''):gsub('\\', '\\\\'):gsub("'", "\\'")
+end
+
+--- Ordered, so the generated block does not reshuffle itself between runs. `pairs` makes no
+--- promises, and a block that changes order every time is one nobody can diff.
+local function itemsInOrder()
+    local keys = {}
+    for key, entry in pairs(Config.Items) do
+        if type(entry) == 'table' and entry.item and entry.item ~= '' then
+            keys[#keys + 1] = key
+        end
+    end
+    table.sort(keys)
+    return keys
+end
+
+local BLOCKS = {}
+
+BLOCKS['qb-core'] = function(lines)
+    lines[#lines + 1] = '-- qb-core / qbx_core:  qb-core/shared/items.lua'
+    lines[#lines + 1] = '-- Paste inside the QBShared.Items table.'
+    lines[#lines + 1] = ''
+
+    for _, key in ipairs(itemsInOrder()) do
+        local it = Config.Items[key]
+        lines[#lines + 1] = ("    ['%s'] = { name = '%s', label = '%s', weight = %d, "
+            .. "type = 'item', image = '%s', unique = false, useable = true, "
+            .. "shouldClose = true, combinable = nil, description = '%s' },")
+            :format(it.item, it.item, luaQuote(it.label or it.item),
+                math.floor(tonumber(it.weight) or 200), it.image or (it.item .. '.png'),
+                luaQuote(it.description))
+    end
+end
+
+BLOCKS['ox_inventory'] = function(lines)
+    lines[#lines + 1] = '-- ox_inventory:  ox_inventory/data/items.lua'
+    lines[#lines + 1] = '-- Paste inside the return table. No `useable` field: ox decides from'
+    lines[#lines + 1] = '-- whether a resource registered a handler, which v-sport does at boot.'
+    lines[#lines + 1] = ''
+
+    for _, key in ipairs(itemsInOrder()) do
+        local it = Config.Items[key]
+        lines[#lines + 1] = ("    ['%s'] = {"):format(it.item)
+        lines[#lines + 1] = ("        label = '%s',"):format(luaQuote(it.label or it.item))
+        lines[#lines + 1] = ('        weight = %d,'):format(math.floor(tonumber(it.weight) or 200))
+        lines[#lines + 1] = '        stack = true,'
+        lines[#lines + 1] = '        close = true,'
+        lines[#lines + 1] = ("        description = '%s',"):format(luaQuote(it.description))
+        lines[#lines + 1] = '        client = { export = nil },'
+        lines[#lines + 1] = '    },'
+    end
+end
+
+BLOCKS['esx'] = function(lines)
+    lines[#lines + 1] = '-- ESX (es_extended): items live in the DATABASE, not in a file.'
+    lines[#lines + 1] = '-- Run this SQL once. `limit` of -1 means no per-item stack limit.'
+    lines[#lines + 1] = ''
+    lines[#lines + 1] = 'INSERT INTO items (name, label, weight, rare, can_remove) VALUES'
+
+    local rows = {}
+    for _, key in ipairs(itemsInOrder()) do
+        local it = Config.Items[key]
+        -- ESX weight is in whole units rather than grams, so a 500 g tub is not 500 units.
+        local weight = math.max(1, math.floor((tonumber(it.weight) or 200) / 100))
+        rows[#rows + 1] = ("    ('%s', '%s', %d, 0, 1)")
+            :format(it.item, luaQuote(it.label or it.item), weight)
+    end
+
+    lines[#lines + 1] = table.concat(rows, ',\n')
+    lines[#lines + 1] = 'ON DUPLICATE KEY UPDATE label = VALUES(label), weight = VALUES(weight);'
+end
+
+--[[
+    Print the block for one inventory, or for the one this server is running.
+
+    Defaults to what was detected rather than printing all three, because the common case is an
+    operator who wants the answer and not a menu. `all` prints everything, for someone writing
+    documentation or migrating between inventories.
+]]
+local function printItems(target, which)
+    local lines = {}
+
+    which = tostring(which or ''):lower()
+
+    if which == '' then
+        -- What is actually installed. ox_inventory is checked first because a server can run it
+        -- ON TOP of qb-core, in which case ox owns the item list.
+        if GetResourceState('ox_inventory') == 'started' then
+            which = 'ox_inventory'
+        elseif Bridge.framework():find('esx') then
+            which = 'esx'
+        else
+            which = 'qb-core'
+        end
+        lines[#lines + 1] = ('-- Detected: %s. Pass a name to this command for another one:'):format(which)
+        lines[#lines + 1] = '--   qb-core | ox_inventory | esx | all'
+        lines[#lines + 1] = ''
+    end
+
+    if which == 'all' then
+        for _, name in ipairs({ 'qb-core', 'ox_inventory', 'esx' }) do
+            BLOCKS[name](lines)
+            lines[#lines + 1] = ''
+        end
+    elseif BLOCKS[which] then
+        BLOCKS[which](lines)
+    else
+        lines[#lines + 1] = ('unknown inventory "%s". Known: qb-core, ox_inventory, esx, all')
+            :format(which)
+    end
+
+    lines[#lines + 1] = ''
+    lines[#lines + 1] = '-- Images: put images/*.png into your inventory\'s image folder.'
+    lines[#lines + 1] = '-- v-sport ships SVG sources in images/ - see images/README.md.'
+
+    print('^5==== v-sport: add these items to your inventory ====^7')
+    for _, line in ipairs(lines) do print(line) end
+    print('^5===================================================^7')
+
+    if target and target ~= 0 then
+        TriggerClientEvent('vsport:client:ItemBlocks', target, lines)
+    end
+end
+
+exports('GetItemBlocks', function(which)
+    local lines = {}
+    if BLOCKS[tostring(which or 'qb-core')] then
+        BLOCKS[tostring(which or 'qb-core')](lines)
+    end
+    return lines
+end)
+
+RegisterNetEvent('vsport:server:ItemBlocks', function(which)
+    local src = source
+    if Config.Commands.restrictDevCommands ~= false and not Bridge.isAdmin(src) then
+        Bridge.notify(src, L('notify.no_permission'), 'error')
+        return
+    end
+    printItems(src, which)
+end)
+
+CreateThread(function()
+    local name = Config.Commands.items
+    if type(name) ~= 'string' or name == '' then return end
+
+    Bridge.addCommand(name, L('cmd.items'), {
+        { name = 'inventory', help = 'qb-core | ox_inventory | esx | all' },
+    }, true, function(src, rawArgs)
+        local args = rawArgs
+        if type(args) == 'string' then
+            args = {}
+            for word in rawArgs:gmatch('%S+') do args[#args + 1] = word end
+        end
+        printItems(src, type(args) == 'table' and args[1] or nil)
+    end)
 end)

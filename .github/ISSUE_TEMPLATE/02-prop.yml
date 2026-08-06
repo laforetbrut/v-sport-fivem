@@ -1,0 +1,92 @@
+name: A prop is not recognised / Un prop n'est pas reconnu
+description: Equipment in your map that v-sport does not offer anything on. / Du matériel de votre carte sur lequel v-sport ne propose rien.
+title: "[prop] "
+labels: ["prop", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **You can almost certainly fix this yourself in ten seconds, without waiting for a release.**
+        **Vous pouvez très probablement le corriger vous-même en dix secondes, sans attendre une version.**
+
+        Stand in front of the equipment and run:
+
+        ```
+        /vsportadd treadmill
+        ```
+
+        It adds the prop you are LOOKING AT to that exercise, live, for every player, with no file to
+        edit and no restart. Then `/vsportprop treadmill` to align the body, and `K` to save it.
+        `/vsportexport` prints it as a `config.lua` block when you want it permanent. PROPS.md has the
+        whole flow.
+
+        Il ajoute le prop que vous REGARDEZ à cet exercice, en direct, pour tous les joueurs, sans
+        fichier à modifier ni redémarrage. Puis `/vsportprop treadmill` pour aligner le corps, et `K`
+        pour enregistrer. `/vsportexport` en fait un bloc `config.lua` quand vous le voulez définitif.
+
+        **File this anyway if the model is part of the BASE GAME** — that is a gap in the shipped
+        catalogue and it should be fixed for everyone.
+        **Postez quand même si le modèle fait partie du JEU DE BASE** : c'est un manque dans le
+        catalogue fourni et il doit être corrigé pour tout le monde.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks / Vérifications
+      options:
+        - label: I ran `/vsportscan 30` next to it. / J'ai lancé `/vsportscan 30` à côté.
+          required: true
+        - label: I checked PROPS.md to see whether the model is already listed. / J'ai vérifié dans PROPS.md si le modèle est déjà listé.
+          required: true
+
+  - type: dropdown
+    id: origin
+    attributes:
+      label: Where does the prop come from? / D'où vient le prop ?
+      options:
+        - The base game / Le jeu de base
+        - A free MLO / Un MLO gratuit
+        - A paid MLO / Un MLO payant
+        - I made it / Je l'ai créé
+        - I do not know / Je ne sais pas
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Model name / Nom du modèle
+      description: From `/vsportscan`. If it prints only a hash, paste the hash. / Depuis `/vsportscan`. S'il n'affiche qu'un hash, collez le hash.
+      placeholder: "gym_treadmill_a"
+    validations:
+      required: true
+
+  - type: input
+    id: exercise
+    attributes:
+      label: Which exercise should it be? / Quel exercice devrait-il être ?
+      description: A key from PROPS.md, or a description if none fits. / Une clé de PROPS.md, ou une description si aucune ne convient.
+      placeholder: "treadmill"
+    validations:
+      required: true
+
+  - type: textarea
+    id: scan
+    attributes:
+      label: /vsportscan output / Sortie de /vsportscan
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: where
+    attributes:
+      label: Where is it in the world? / Où est-il dans le monde ?
+      description: Coordinates, or the name of the gym. Only useful for base-game props. / Coordonnées, ou le nom de la salle. Utile seulement pour les props du jeu de base.
+      placeholder: "-1200.4, -1566.1, 4.6 — the Vespucci gym"
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: Did /vsportadd work? / Est-ce que /vsportadd a fonctionné ?
+      description: If it did, say so and what the animation looked like. If it did not, what it printed. / Si oui, dites-le et décrivez l'animation. Si non, ce qu'elle a affiché.

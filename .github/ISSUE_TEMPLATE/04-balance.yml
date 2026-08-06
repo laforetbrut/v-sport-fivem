@@ -1,0 +1,92 @@
+name: Balance / Équilibrage
+description: Progression, decay, the allowance or an effect feels wrong. / La progression, les pertes, le quota ou un effet semble mal réglé.
+title: "[balance] "
+labels: ["balance", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Balance is measured in this resource, not estimated.** `python tools/check.py` simulates
+        five kinds of player day by day against the real progression functions and prints how long
+        each takes to reach 100 in every stat. It also asserts that passive training stays well
+        behind the equipment and that no buff can push an effect past its configured maximum.
+
+        **L'équilibrage est mesuré, pas estimé.** `python tools/check.py` simule cinq profils de
+        joueur jour par jour avec les vraies fonctions de progression et affiche le temps pour
+        atteindre 100 dans chaque stat. Il vérifie aussi que le passif reste loin derrière
+        l'équipement et qu'aucun buff ne peut dépasser le maximum configuré d'un effet.
+
+        So paste that output. A report with numbers in it gets a change; a report that says "too fast"
+        gets a question back, because the shipped values are already a deliberate answer and every
+        one of them is configurable.
+
+        Collez donc cette sortie. Un rapport chiffré obtient un changement ; un rapport qui dit
+        « trop rapide » obtient une question en retour, car les valeurs fournies sont déjà un choix
+        assumé et chacune est configurable.
+
+  - type: dropdown
+    id: which
+    attributes:
+      label: Which mechanism? / Quel mécanisme ?
+      options:
+        - How long a maxed character takes / Durée pour atteindre le maximum
+        - Decay - what absence costs / Perte - le coût de l'absence
+        - The 25-hour allowance / Le quota de 25 heures
+        - Fatigue within a session block / Fatigue dans une série de séances
+        - The effects (melee, sprint, swim, breath) / Les effets
+        - Passive training (running, cycling, swimming, diving) / Entraînement passif
+        - What one piece of equipment is worth / Ce que vaut un équipement
+        - Items (whey, protein bar, pre-workout) / Items
+        - Other / Autre
+    validations:
+      required: true
+
+  - type: dropdown
+    id: direction
+    attributes:
+      label: Too generous or too harsh? / Trop généreux ou trop dur ?
+      options:
+        - Too generous / Trop généreux
+        - Too harsh / Trop dur
+        - Inconsistent - it depends / Incohérent - ça dépend
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: What you measured / Ce que vous avez mesuré
+      description: |
+        Real numbers from your server: points gained, over how long, by how many players.
+        Des chiffres réels de votre serveur : points gagnés, en combien de temps, par combien de joueurs.
+      placeholder: |
+        Three players reached 100 strength in 4 days each. / Trois joueurs ont atteint 100 en force en 4 jours.
+        They were doing 40 bench sessions a day. / Ils faisaient 40 séances de banc par jour.
+    validations:
+      required: true
+
+  - type: textarea
+    id: simulation
+    attributes:
+      label: tools/check.py output / Sortie de tools/check.py
+      description: The `days to take ALL THREE stats to 100%` block and the `passive training` block. / Les blocs `days to take ALL THREE stats to 100%` et `passive training`.
+      render: text
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Your balance config / Votre configuration d'équilibrage
+      description: |
+        `sessionsToMax`, `Config.Allowance`, `Config.Decay`, `Config.Progression`, `Config.Passive`.
+        If they are untouched, say so - that is the most useful answer.
+        Si elles sont d'origine, dites-le : c'est la réponse la plus utile.
+      render: lua
+    validations:
+      required: true
+
+  - type: input
+    id: players
+    attributes:
+      label: Roughly how many active players? / Environ combien de joueurs actifs ?
+      description: A number tuned for 30 players is wrong for 300. / Un réglage pour 30 joueurs est faux pour 300.
+      placeholder: "about 60 at peak / environ 60 en pointe"

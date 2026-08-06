@@ -405,6 +405,247 @@ local function ApplyDecayNow(src)
 end
 
 -- ===========================================================================================
+-- CONDITIONS: SMOKING, ADDICTION, INJURY
+-- ===========================================================================================
+--
+-- A habit is not an event. "Minus five strength, once" does not model a smoker; being held
+-- back for as long as you smoke does. These three express that, and they are what a smoking,
+-- drug-abuse or untreated-injury script should reach for instead of RemoveStat.
+--
+--   a CEILING       you can still train, you just cannot pass 60 stamina while you smoke
+--   a DRAIN         you lose a little every hour, for as long as it is in your system
+--   FASTER DECAY    the ten points a day of absence becomes twenty
+--
+-- None of them touches a stat at the moment it is applied, which is what makes them read as a
+-- condition rather than a punishment. All three are bounded by Config.Buffs
+-- (maxDecayMultiplier, maxDrainPerHour, minStatCeiling) so a bug in the calling resource
+-- costs a console warning rather than a character.
+--
+-- NONE OF THEM SURVIVES A DISCONNECT OR A RESTART, by design - same as buffs. v-sport holds
+-- the transient effect; the resource that owns the CONDITION owns persisting it, and re-applies
+-- on `vsport:server:PlayerLoaded`.
+
+--[[
+    Cap what training can reach on one stat.
+
+        exports['v-sport']:SetStatCeiling(source, 'stamina', 60.0, 0)
+
+    A heavy smoker can train all they like and their stamina stops at 60. `seconds` of 0 means
+    until it is cleared, which is the right shape for a habit - the smoking script clears it
+    when they quit.
+
+    By default this does NOT pull a stat that is already above the cap back down; it only stops
+    further gains. `Config.Buffs.ceilingTrimsExisting` changes that.
+]]
+local function SetStatCeiling(src, key, value, seconds)
+    return Profiles.setCeiling(tonumber(src), key, value, seconds)
+end
+
+--- Lift the ceiling on one stat, or all of them.
+local function ClearStatCeiling(src, key)
+    return Profiles.clearCeiling(tonumber(src), key)
+end
+
+--- The ceiling in force on `key`, or nil.
+local function GetStatCeiling(src, key)
+    local profile = profileOf(src)
+    if not profile then return nil end
+    return Profiles.ceiling(profile, key)
+end
+
+--[[
+    Lose points continuously, for as long as it lasts.
+
+        exports['v-sport']:AddDrain(source, 'stamina', 1.5, 6 * 3600)
+        -- 1.5 stamina an hour for six hours: about nine points over a heavy night
+
+    Charged from real elapsed time on the same slow timer that re-checks decay, so the amount
+    does not depend on the timer being punctual. It will not take a stat below its decay floor.
+
+    Returns an id for RemoveDrain.
+]]
+local function AddDrain(src, key, perHour, seconds, id)
+    return Profiles.addDrain(tonumber(src), key, perHour, seconds, id)
+end
+
+--- Stop one drain, or all of them. Call this when the player sobers up or gets treated.
+local function RemoveDrain(src, id)
+    return Profiles.removeDrain(tonumber(src), id)
+end
+
+--- Every active drain, as a copy.
+local function GetDrains(src)
+    local profile = profileOf(src)
+    return profile and Sport.copy(profile.drains) or nil
+end
+
+--[[
+    Make decay run faster, or slower.
+
+        exports['v-sport']:SetDecayMultiplier(source, 2.0, 7 * 86400)
+        -- while they are a heavy smoker, a day off the gym costs 20 rather than 10
+
+    Below 1.0 slows decay down, which is a gentler alternative to SetDecayImmunity for
+    something that helps rather than protects. 0.0 is the same as immunity.
+]]
+local function SetDecayMultiplier(src, value, seconds)
+    return Profiles.setDecayMultiplier(tonumber(src), value, seconds)
+end
+
+local function GetDecayMultiplier(src)
+    local profile = profileOf(src)
+    if not profile then return nil end
+    return Profiles.decayMultiplier(profile)
+end
+
+--[[
+    Everything active on a player, in one call.
+
+    For a drug script that wants to know what it is stacking onto, and for a /checkbody style
+    command. Read-only.
+]]
+local function GetConditions(src)
+    local profile = profileOf(src)
+    if not profile then return nil end
+
+    local ceilings = {}
+    for key in pairs(Config.Stats) do
+        ceilings[key] = Profiles.ceiling(profile, key)
+    end
+
+    local multipliers = {}
+    for _, key in ipairs(Stats.keys()) do
+        multipliers[key] = Stats.multiplier(key, profile.multipliers, Sport.now())
+    end
+
+    return {
+        buffs = Sport.copy(profile.buffs),
+        gainMultipliers = multipliers,
+        ceilings = ceilings,
+        drains = Sport.copy(profile.drains),
+        decayMultiplier = Profiles.decayMultiplier(profile),
+        decayPaused = profile.decayPaused,
+        decayImmuneUntil = profile.decayImmuneUntil,
+        blocked = profile.blocked,
+        blockReason = profile.blockReason,
+    }
+end
+
+--- The combined training multiplier in force on one stat right now. 1.0 when nothing is
+--- active. Useful for a script that wants to tell the player "your gains are doubled".
+local function GetGainMultiplier(src, key)
+    local profile = profileOf(src)
+    if not profile or not Stats.def(key) then return nil end
+    return Stats.multiplier(key, profile.multipliers, Sport.now())
+end
+
+--[[
+    Apply a whole bundle of effects in one call.
+
+    A drug is rarely one effect. Rather than six calls with six sets of error handling, hand it
+    a table and get back a table of what took:
+
+        exports['v-sport']:ApplyPackage(source, {
+            buffs       = { { stat = 'strength', amount = 20, seconds = 900 } },
+            multipliers = { { stat = nil, value = 2.0, seconds = 900 } },
+            ceilings    = { { stat = 'stamina', value = 70, seconds = 900 } },
+            drains      = { { stat = 'breath', perHour = 2.0, seconds = 3600 } },
+            decayMultiplier = { value = 1.5, seconds = 86400 },
+            decayImmunity   = nil,
+            exhaust     = { factor = 0.5, seconds = 120 },
+            allowance   = 10,                       -- points refunded
+            reduceRecovery = nil,                   -- seconds of shortened window
+            stats       = { strength = -3 },        -- permanent changes
+        })
+
+    Every field is optional. Unknown fields are ignored rather than an error, so a caller
+    written against a later version degrades instead of failing.
+]]
+local function ApplyPackage(src, package)
+    local source_ = tonumber(src)
+    if not profileOf(source_) or type(package) ~= 'table' then return nil end
+
+    local applied = { buffs = {}, multipliers = {}, drains = {}, ceilings = {} }
+
+    for _, entry in ipairs(type(package.buffs) == 'table' and package.buffs or {}) do
+        local id = Profiles.addBuff(source_, entry.stat, entry.amount, entry.seconds, entry.id)
+        if id then applied.buffs[#applied.buffs + 1] = id end
+    end
+
+    for _, entry in ipairs(type(package.multipliers) == 'table' and package.multipliers or {}) do
+        local id = Profiles.addMultiplier(source_, entry.stat, entry.value, entry.seconds, entry.id)
+        if id then applied.multipliers[#applied.multipliers + 1] = id end
+    end
+
+    for _, entry in ipairs(type(package.ceilings) == 'table' and package.ceilings or {}) do
+        if Profiles.setCeiling(source_, entry.stat, entry.value, entry.seconds) then
+            applied.ceilings[#applied.ceilings + 1] = entry.stat
+        end
+    end
+
+    for _, entry in ipairs(type(package.drains) == 'table' and package.drains or {}) do
+        local id = Profiles.addDrain(source_, entry.stat, entry.perHour, entry.seconds, entry.id)
+        if id then applied.drains[#applied.drains + 1] = id end
+    end
+
+    if type(package.decayMultiplier) == 'table' then
+        Profiles.setDecayMultiplier(source_, package.decayMultiplier.value,
+            package.decayMultiplier.seconds)
+        applied.decayMultiplier = true
+    end
+
+    if tonumber(package.decayImmunity) then
+        SetDecayImmunity(source_, package.decayImmunity)
+        applied.decayImmunity = true
+    end
+
+    -- The client event directly rather than the Exhaust export, which is a local defined
+    -- further down this file and would therefore be nil here. Same two lines either way.
+    if type(package.exhaust) == 'table' then
+        TriggerClientEvent('vsport:client:Exhaust', source_,
+            Sport.clamp(package.exhaust.factor, 0.0, 1.0, 0.0),
+            math.max(0, tonumber(package.exhaust.seconds) or 30))
+        applied.exhaust = true
+    end
+
+    if tonumber(package.allowance) then
+        Profiles.refundAllowance(source_, math.max(0, tonumber(package.allowance)))
+        applied.allowance = true
+    end
+
+    if tonumber(package.reduceRecovery) then
+        Profiles.reduceRecovery(source_, tonumber(package.reduceRecovery))
+        applied.reduceRecovery = true
+    end
+
+    if type(package.stats) == 'table' then
+        applied.stats = {}
+        for key, amount in pairs(package.stats) do
+            local after = Profiles.changeStat(source_, key, amount, 'add', false)
+            if after then applied.stats[key] = after end
+        end
+    end
+
+    return applied
+end
+
+--- Undo an ApplyPackage by the ids it returned. Ceilings and the decay multiplier are cleared
+--- outright, since they are per-stat and per-player rather than per-effect.
+local function ClearPackage(src, applied)
+    local source_ = tonumber(src)
+    if not profileOf(source_) or type(applied) ~= 'table' then return false end
+
+    for _, id in ipairs(applied.buffs or {}) do Profiles.removeBuff(source_, id) end
+    for _, id in ipairs(applied.multipliers or {}) do Profiles.removeBuff(source_, id) end
+    for _, id in ipairs(applied.drains or {}) do Profiles.removeDrain(source_, id) end
+    for _, key in ipairs(applied.ceilings or {}) do Profiles.clearCeiling(source_, key) end
+
+    if applied.decayMultiplier then Profiles.setDecayMultiplier(source_, 1.0, 0) end
+
+    return true
+end
+
+-- ===========================================================================================
 -- TRAINING CONTROL
 -- ===========================================================================================
 
@@ -581,6 +822,20 @@ local API = {
     IsDecayPaused = IsDecayPaused,
     SetDecayImmunity = SetDecayImmunity,
     ApplyDecayNow = ApplyDecayNow,
+    SetDecayMultiplier = SetDecayMultiplier,
+    GetDecayMultiplier = GetDecayMultiplier,
+
+    -- Conditions: smoking, addiction, injury
+    SetStatCeiling = SetStatCeiling,
+    ClearStatCeiling = ClearStatCeiling,
+    GetStatCeiling = GetStatCeiling,
+    AddDrain = AddDrain,
+    RemoveDrain = RemoveDrain,
+    GetDrains = GetDrains,
+    GetConditions = GetConditions,
+    GetGainMultiplier = GetGainMultiplier,
+    ApplyPackage = ApplyPackage,
+    ClearPackage = ClearPackage,
 
     -- Training control
     BlockTraining = BlockTraining,

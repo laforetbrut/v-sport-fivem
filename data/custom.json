@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "note": "Managed by v-sport. Written by /vsportadd, /vsportremove and the tuner's save key. Safe to delete: you lose the in-game additions and nothing else. Use /vsportexport to move them into config.lua permanently.",
+  "equipment": {}
+}

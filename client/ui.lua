@@ -306,6 +306,93 @@ function UI.keyBox(x, y, h, label, state)
 end
 
 -- ---------------------------------------------------------------------------------------
+-- Key labels
+-- ---------------------------------------------------------------------------------------
+--
+--  WHY THIS IS NOT JUST GetControlInstructionalButton.
+--
+--  That native answers with an internal token for a good number of controls - `b_1004` for
+--  BACKSPACE, for instance - and a prompt reading "hold [b_1004] to stop" is what this
+--  function exists to prevent. It is tried first, accepted only when it comes back looking
+--  like something a person would recognise, and otherwise falls through to the table below.
+--
+--  The keyboard LAYOUT cannot be asked for at all. GTA maps a control to a physical key
+--  position, so control 34 is `A` on QWERTY and `Q` on AZERTY - the same key, a different
+--  letter printed on it. Config.Minigame.keyboardLayout decides which letter to draw.
+
+-- Names for the controls this resource uses, per layout. Only the six QTE keys and the
+-- handful of prompt keys need to be here.
+local KEY_NAMES = {
+    qwerty = {
+        [32] = 'W', [33] = 'S', [34] = 'A', [35] = 'D',
+        [38] = 'E', [44] = 'Q', [45] = 'R', [23] = 'F', [22] = 'SPACE',
+        [47] = 'G', [177] = 'BACKSPACE', [200] = 'ESC',
+    },
+    azerty = {
+        [32] = 'Z', [33] = 'S', [34] = 'Q', [35] = 'D',
+        [38] = 'E', [44] = 'A', [45] = 'R', [23] = 'F', [22] = 'ESPACE',
+        [47] = 'G', [177] = 'RETOUR', [200] = 'ECHAP',
+    },
+}
+
+local resolvedLayout
+
+--- 'azerty' or 'qwerty'. 'auto' derives it from the locale, which is the best signal
+--- available: a French-locale server is overwhelmingly an AZERTY server.
+function UI.layout()
+    if resolvedLayout then return resolvedLayout end
+
+    local configured = Config.Minigame.keyboardLayout or 'auto'
+
+    if configured == 'azerty' or configured == 'qwerty' then
+        resolvedLayout = configured
+    else
+        resolvedLayout = Locale.current() == 'fr' and 'azerty' or 'qwerty'
+    end
+
+    return resolvedLayout
+end
+
+--- The letter to draw for a key pool entry, honouring the layout.
+function UI.poolLabel(entry)
+    if type(entry) ~= 'table' then return '?' end
+
+    local layout = UI.layout()
+    local label = entry[layout] or entry.label
+    if type(label) == 'string' and label ~= '' then return label end
+
+    return UI.keyLabel(entry.control)
+end
+
+--[[
+    A human-readable name for `control`.
+
+    `fallback` is used when neither the game nor the table knows it, so a caller can supply
+    something better than a question mark.
+]]
+function UI.keyLabel(control, fallback)
+    local index = tonumber(control)
+    if not index then return fallback or '?' end
+
+    local raw = GetControlInstructionalButton(0, index, true)
+
+    if type(raw) == 'string' and raw ~= '' then
+        -- `t_NAME` is the game's own markup for a named key and is the good case.
+        local named = raw:match('^t_(.+)$')
+        if named and named ~= '' then return named end
+
+        -- Anything that is a bare word of a sensible length is usable as-is. A `b_1234`
+        -- token, or anything with punctuation in it, is not.
+        if not raw:match('^b_') and raw:match('^[%w ]+$') and #raw <= 8 then
+            return raw
+        end
+    end
+
+    local table_ = KEY_NAMES[UI.layout()] or KEY_NAMES.qwerty
+    return table_[index] or fallback or '?'
+end
+
+-- ---------------------------------------------------------------------------------------
 -- Markers
 -- ---------------------------------------------------------------------------------------
 

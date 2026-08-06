@@ -1,0 +1,79 @@
+name: Documentation / Documentation
+description: Something in the docs is wrong, missing or misleading. / Quelque chose dans la doc est faux, manquant ou trompeur.
+title: "[docs] "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Documentation that is wrong is worse than documentation that is missing, so these are taken
+        seriously and fixed quickly. Two of the documents are GENERATED and cannot be edited
+        directly — if the problem is in one of those, the generator or the source is what is wrong:
+
+        - `PROPS.md` is generated from `shared/equipment.lua` by `tools/props.py`.
+
+        Une doc fausse est pire qu'une doc absente : ces issues sont traitées vite. Deux documents
+        sont GÉNÉRÉS et ne se modifient pas directement — si le problème est là, c'est le générateur
+        ou la source qui est en cause : `PROPS.md` est généré depuis `shared/equipment.lua`.
+
+  - type: dropdown
+    id: file
+    attributes:
+      label: Which document? / Quel document ?
+      options:
+        - README.md
+        - CONFIG.md
+        - PROPS.md (generated / généré)
+        - API.md
+        - ITEMS.md
+        - images/README.md
+        - CHANGELOG.md
+        - Comments in config.lua / Commentaires dans config.lua
+        - Comments in the code / Commentaires dans le code
+        - Other / Autre
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem? / Quel type de problème ?
+      options:
+        - It is factually wrong / C'est factuellement faux
+        - It describes behaviour that no longer exists / Ça décrit un comportement qui n'existe plus
+        - Something is missing entirely / Quelque chose manque totalement
+        - It is ambiguous or easy to misread / C'est ambigu ou facile à mal comprendre
+        - A code example does not work / Un exemple de code ne fonctionne pas
+        - The French and English sections disagree / Les sections française et anglaise se contredisent
+        - Other / Autre
+    validations:
+      required: true
+
+  - type: input
+    id: where
+    attributes:
+      label: Where / Où
+      description: A section heading, or a quoted line. / Un titre de section, ou une ligne citée.
+      placeholder: "CONFIG.md, 'The effect table' — the sprint row"
+    validations:
+      required: true
+
+  - type: textarea
+    id: says
+    attributes:
+      label: What it says / Ce que ça dit
+      description: Quote it. / Citez-le.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reality
+    attributes:
+      label: What is actually true / Ce qui est réellement vrai
+      description: |
+        And how you know — a test, a console line, or the code. That is what makes a docs fix
+        verifiable rather than a swap of one claim for another.
+        Et comment vous le savez : un test, une ligne de console, ou le code. C'est ce qui rend la
+        correction vérifiable au lieu d'échanger une affirmation contre une autre.
+    validations:
+      required: true

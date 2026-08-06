@@ -1,0 +1,85 @@
+name: Compatibility / Compatibilité
+description: A framework, inventory, target or menu that v-sport does not detect or work with. / Un framework, inventaire, target ou menu que v-sport ne détecte pas.
+title: "[compat] "
+labels: ["compatibility", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Everything optional is detected at runtime and nothing is a hard dependency. When detection
+        gets it wrong, `Config.Compat` can usually be told the answer directly — try that first and
+        say whether it helped, because "the override works" and "the override also fails" point at
+        two completely different bugs.
+
+        Tout ce qui est optionnel est détecté à l'exécution et rien n'est une dépendance dure. Quand
+        la détection se trompe, `Config.Compat` permet généralement de forcer la réponse : essayez
+        d'abord et dites si ça aide, car « la surcharge fonctionne » et « la surcharge échoue aussi »
+        désignent deux bugs complètement différents.
+
+  - type: input
+    id: version
+    attributes:
+      label: v-sport version
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of resource? / Quel type de ressource ?
+      options:
+        - Framework / core
+        - Inventory / Inventaire
+        - Target (third eye) / Target
+        - Radial or context menu / Menu radial ou contextuel
+        - Notification system / Système de notifications
+        - Database wrapper / Couche base de données
+        - Something that changes stats (drugs, injuries, food) / Quelque chose qui modifie les stats
+        - Other / Autre
+    validations:
+      required: true
+
+  - type: input
+    id: resource
+    attributes:
+      label: Resource name and version / Nom et version de la ressource
+      placeholder: "qs-inventory 2.4.1"
+    validations:
+      required: true
+
+  - type: input
+    id: link
+    attributes:
+      label: Link, if it is public / Lien, si elle est publique
+      description: A public repository or forum thread makes this far quicker to support. / Un dépôt public ou un fil de forum accélère beaucoup le support.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What does not work / Ce qui ne fonctionne pas
+      description: Not detected at all, detected and then errors, or works but behaves oddly? / Pas détectée, détectée puis erreur, ou fonctionne mais se comporte mal ?
+    validations:
+      required: true
+
+  - type: textarea
+    id: info
+    attributes:
+      label: /vsportinfo output / Sortie de /vsportinfo
+      description: This is the detection report. It is the most useful thing in the whole issue. / C'est le rapport de détection, la chose la plus utile de toute l'issue.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: override
+    attributes:
+      label: Did a Config.Compat override help? / Est-ce qu'une surcharge Config.Compat a aidé ?
+      description: e.g. `Config.Compat.forceFramework = 'esx'` or `forceTarget = 'ox_target'`. Say what you set and what changed. / Dites ce que vous avez défini et ce qui a changé.
+      render: lua
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output / Sortie console
+      render: text

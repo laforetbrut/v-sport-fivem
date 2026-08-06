@@ -116,13 +116,13 @@ client/session.lua          One workout, start to finish. Asks the server for pe
 client/interact.lua         Target registration, the key prompt, markers.
 client/passive.lua          Sprinting and diving, reported in batches.
 client/menu.lua             The stats panel. A readout, not a menu: nothing to select.
-client/commands.lua         /sport, /sportinfo, /sportscan, /sportspot, and every client export.
+client/commands.lua         /vsport, /vsportinfo, /vsportscan, /vsportspot, and every client export.
 server/database.lua         Optional persistence. Three drivers, off silently when none is found.
 server/stats.lua            THE authority: profiles, the allowance ledger, decay, buffs, saving.
 server/session.lua          Token issue and result validation. Every check fails closed.
 server/api.lua              Fifty exports and their event twins. The contract other resources use.
 server/items.lua            Whey and the other consumables, on all three inventories.
-server/commands.lua         /sportadmin and the boot banner.
+server/commands.lua         /vsportadmin and the boot banner.
 sql/v_sport.sql             The schema, for operators who cannot grant DDL rights.
 ```
 
@@ -144,7 +144,8 @@ sql/v_sport.sql             The schema, for operators who cannot grant DDL right
 ## 6. Testing Checklist
 
 ```bash
-python <scratchpad>/check.py
+pip install luaparser lupa      # once
+python tools/check.py
 ```
 
 That script does all of the following, and a change is not done until it passes clean:
@@ -157,6 +158,14 @@ That script does all of the following, and a change is not done until it passes 
 - runs the progression maths: a perfect session pays, a spent allowance pays nothing, a maxed
   per-stat allowance blocks that stat and only that stat
 - proves decay is idempotent — 10 idle days charges once, a second call charges nothing
+- proves an imposed stat ceiling blocks gains and pays exactly the headroom below it
+- proves accelerated decay costs proportionally and is clamped, and peak protection lands
+  exactly at `peak - peakProtection`
+- **simulates the progression day by day** against the real functions, with the real allowance
+  ledger and the real decay rules, and reports days-to-max for five kinds of player. It fails if
+  the headline figure leaves 12 to 17 days. Any change to `sessionsToMax`, `Config.Allowance`,
+  `Config.Progression.fatigue` or `Config.Decay` must be re-measured here, and the tables in
+  README.md and CONFIG.md updated to whatever it says.
 - proves no effect at 100% exceeds an engine ceiling, and that the buff overcap holds
 - locale parity both ways, format-specifier parity, and that every `L()` key used in code exists
 - manifest completeness both ways
@@ -164,8 +173,8 @@ That script does all of the following, and a change is not done until it passes 
 Then, in game:
 
 - [ ] Server console clean on boot; client F8 clean.
-- [ ] `/sportinfo` names the right framework, target and notification provider.
-- [ ] `/sportscan` in a gym finds the props; `Config.Debug.drawDetected` agrees with it.
+- [ ] `/vsportinfo` names the right framework, target and notification provider.
+- [ ] `/vsportscan` in a gym finds the props; `Config.Debug.drawDetected` agrees with it.
 - [ ] A full session on each difficulty. Perfect, good and missed presses all judge correctly.
 - [ ] Cancel mid-session — the reps done still pay, the animation clears, no stuck state.
 - [ ] Die mid-session, get in a car mid-session, get blocked mid-session.

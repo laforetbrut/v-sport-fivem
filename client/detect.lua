@@ -133,11 +133,31 @@ local function scan(playerCoords)
     local count = 0
 
     local pool = GetGamePool('CObject')
-    local examined = 0
 
+    --[[
+        THE WHOLE POOL IS WALKED. This used to stop after `maxObjects` POOL ENTRIES, on the
+        assumption - written down as a comment, never checked - that the pool comes back roughly
+        nearest-first. IT DOES NOT. The order is arbitrary.
+
+        The symptom was ugly and hard to attribute: on a map with 718 objects streamed in,
+        /vsportinfo reported "0 in range" while /vsportscan, which has no such limit, listed a
+        usable bench two metres away. Equipment simply became invisible past whatever index the
+        engine happened to put it at.
+
+        Walking all of it is cheap because of the order of the two filters: GetEntityModel plus
+        one hash lookup runs for every object, and that is a few hundred nanoseconds each;
+        GetEntityCoords, which actually costs something, runs only for the handful that are sport
+        equipment. Seven hundred objects is not a measurable amount of work.
+
+        `maxObjects` now caps RESULTS instead, which is what a limit should protect: a gym with a
+        hundred dumbbells on the floor produces a bounded list, and no equipment ever disappears
+        because of where it sits in a pool.
+    ]]
     for index = 1, #pool do
-        examined = examined + 1
-        if examined > limit then break end
+        if count >= limit then
+            Sport.debug('detection hit the result cap of', limit)
+            break
+        end
 
         local entity = pool[index]
         local model = GetEntityModel(entity)
@@ -243,24 +263,78 @@ function Detect.closest(maxDistance)
     return best
 end
 
---- The nearest piece of equipment within the marker distance, whether usable or not. The
---- prompt uses this so it can say "someone is already using this" rather than nothing.
+--[[
+    The camera's forward vector. No native returns it, and the sign convention is easy to get
+    wrong: GTA's yaw is measured anticlockwise from north, which is where the negated sine comes
+    from. Same maths as client/custom.lua's, kept local because a shared file that touches a
+    camera native would break on the server.
+]]
+local function camForward()
+    local rotation = GetGameplayCamRot(2)
+    local pitch = math.rad(rotation.x)
+    local yaw = math.rad(rotation.z)
+    local flat = math.abs(math.cos(pitch))
+
+    return -math.sin(yaw) * flat, math.cos(yaw) * flat, math.sin(pitch)
+end
+
+--[[
+    The piece of equipment the player is LOOKING AT, or the nearest one when they are not looking
+    at any of it. Whether usable or not, so the prompt can say "someone is already using this"
+    rather than nothing.
+
+    THIS USED TO IGNORE AIM ENTIRELY, and the function name said otherwise for months. It returned
+    the nearest candidate within 8 metres, full stop - so standing in a gym in front of a machine
+    that this resource does not know, with a bench four metres behind you, the prompt offered the
+    bench press. Pressing E then lay the player down at the bench, off screen, which reads exactly
+    like "my character does a bench press in mid-air".
+
+    Muscle Beach is the worst case for it: a dozen pieces of equipment inside eight metres of each
+    other, most of which the catalogue knows, and one prompt that could be about any of them.
+
+    So aim decides, and distance only breaks ties. The dot product of the camera's forward vector
+    against the direction to each candidate is the whole test: 1.0 is dead ahead, 0.0 is straight
+    out to the side. Candidates outside `Config.Interaction.aimCone` are not eligible at all unless
+    nothing is, in which case the nearest wins and the old behaviour is what you get.
+]]
 function Detect.closestVisible()
     local limit = math.min(
         tonumber(Config.Interaction.marker.distance) or 8.0,
         tonumber(Config.Performance.drawCutoff) or 15.0)
     local limitSquared = limit * limit
 
-    local best, bestDistance = nil, math.huge
+    local cone = tonumber(Config.Interaction.aimCone) or 0.55
+    local from = GetGameplayCamCoord()
+    local fx, fy, fz = camForward()
+
+    local aimed, aimedScore = nil, cone
+    local nearest, nearestDistance = nil, math.huge
 
     for index = 1, nearbyCount do
         local candidate = nearby[index]
-        if candidate.distanceSquared <= limitSquared and candidate.distanceSquared < bestDistance then
-            best, bestDistance = candidate, candidate.distanceSquared
+
+        if candidate.distanceSquared <= limitSquared then
+            if candidate.distanceSquared < nearestDistance then
+                nearest, nearestDistance = candidate, candidate.distanceSquared
+            end
+
+            -- Aim, measured from the camera rather than from the ped: the prompt is about what is
+            -- on screen, and in third person those two are a couple of metres apart.
+            local dx = candidate.coords.x - from.x
+            local dy = candidate.coords.y - from.y
+            local dz = candidate.coords.z - from.z
+            local length = math.sqrt(dx * dx + dy * dy + dz * dz)
+
+            if length > 0.01 then
+                local score = (dx * fx + dy * fy + dz * fz) / length
+                if score > aimedScore then
+                    aimed, aimedScore = candidate, score
+                end
+            end
         end
     end
 
-    return best
+    return aimed or nearest
 end
 
 --- Force the next tick to scan rather than reuse. Called when a session ends, because the

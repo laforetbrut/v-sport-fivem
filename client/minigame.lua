@@ -89,7 +89,13 @@ local function buildSequence(count)
         end
 
         previous = pick.control
-        sequence[index] = { label = pick.label, control = pick.control, state = 'idle' }
+        -- The letter comes from the layout, not from the control: the same physical key is
+        -- `A` on QWERTY and `Q` on AZERTY.
+        sequence[index] = {
+            label = UI.poolLabel(pick),
+            control = pick.control,
+            state = 'idle',
+        }
     end
 
     return sequence
@@ -102,9 +108,31 @@ end
 --[[
     Draw the workout panel.
 
-    Everything is positioned from one anchor and one scale, so moving the whole thing is two
-    numbers in the config and nothing else has to be recomputed.
+    ---------------------------------------------------------------------------------------
+    THE HEIGHT IS MEASURED, NOT GUESSED
+    ---------------------------------------------------------------------------------------
+
+    The first version of this function drew its rows with a running cursor and took the panel
+    height from a hand-written constant, and the two did not agree: the content came to about
+    0.168 of the screen against a panel of 0.115, so the form bar and the "hold to stop" hint
+    were painted BELOW the black box, floating on the game.
+
+    So the row heights are named constants now, the panel height is their sum, and adding or
+    hiding a row changes both at once. A row that is switched off in the config costs no space.
 ]]
+
+-- Vertical budget, in fractions of screen height, before Config.UI.scale is applied.
+local PAD_TOP      = 0.015
+local PAD_BOTTOM   = 0.013
+local ROW_HEADER   = 0.021      -- exercise name and rep counter
+local ROW_RULE     = 0.014      -- the separator under the header
+local BOX_HEIGHT   = 0.042      -- a key box
+local GAP_AFTER_KEYS = 0.013
+local ROW_TIMING   = 0.008      -- the timing bar itself
+local GAP_AFTER_TIMING = 0.015
+local ROW_FORM     = 0.016      -- the form bar and its percentage
+local ROW_FOOTER   = 0.015      -- the cancel hint and the streak
+
 local function draw(view)
     local cfg = Config.UI.workout
     local scale = UI.scale()
@@ -113,16 +141,28 @@ local function draw(view)
     local y = tonumber(cfg.y) or 0.82
     local compact = cfg.compact == true
 
+    -- Which rows are actually drawn. Compact keeps only what the QTE cannot work without.
+    local showHeader = not compact and (cfg.showExerciseName or cfg.showRepCounter)
+    local showForm = not compact and cfg.showQualityBar
+    local showFooter = not compact
+
     local width = (compact and 0.20 or 0.26) * scale
-    local height = (compact and 0.062 or 0.115) * scale
+
+    local height = PAD_TOP + PAD_BOTTOM
+        + (showHeader and (ROW_HEADER + ROW_RULE) or 0)
+        + BOX_HEIGHT + GAP_AFTER_KEYS
+        + ROW_TIMING + GAP_AFTER_TIMING
+        + (showForm and ROW_FORM or 0)
+        + (showFooter and ROW_FOOTER or 0)
+    height = height * scale
 
     UI.panel(x, y, width, height, 'panel', 'panelEdge')
 
     local top = y - height * 0.5
-    local cursor = top + 0.014 * scale
+    local cursor = top + PAD_TOP * scale
 
     -- --- Header -----------------------------------------------------------------------
-    if not compact then
+    if showHeader then
         if cfg.showExerciseName then
             UI.text(view.label, x - width * 0.5 + 0.012, cursor - 0.010 * scale, {
                 scale = 0.34,
@@ -139,13 +179,13 @@ local function draw(view)
                 })
         end
 
-        cursor = cursor + 0.022 * scale
+        cursor = cursor + ROW_HEADER * scale
         UI.line(x, cursor, width - 0.024, 'panelEdge', 0.0012)
-        cursor = cursor + 0.014 * scale
+        cursor = cursor + ROW_RULE * scale
     end
 
     -- --- Key row ----------------------------------------------------------------------
-    local boxHeight = 0.042 * scale
+    local boxHeight = BOX_HEIGHT * scale
     local gap = 0.008 * scale
     local boxWidth = UI.square(boxHeight)
 
@@ -159,22 +199,22 @@ local function draw(view)
         keyX = keyX + boxWidth + gap
     end
 
-    cursor = cursor + boxHeight + 0.012 * scale
+    cursor = cursor + boxHeight + GAP_AFTER_KEYS * scale
 
     -- --- Timing bar -------------------------------------------------------------------
     if view.showTiming then
-        UI.timingBar(x, cursor, width - 0.030, 0.008 * scale,
+        UI.timingBar(x, cursor, width - 0.030, ROW_TIMING * scale,
             view.progress, view.goodZone, view.perfectZone)
     else
         -- The rest between reps. Same footprint so the panel does not jump.
-        UI.bar(x, cursor, width - 0.030, 0.008 * scale, view.restProgress or 0.0,
+        UI.bar(x, cursor, width - 0.030, ROW_TIMING * scale, view.restProgress or 0.0,
             'barTrack', 'panelEdge')
     end
 
-    cursor = cursor + 0.018 * scale
+    cursor = cursor + GAP_AFTER_TIMING * scale
 
     -- --- Form bar ---------------------------------------------------------------------
-    if not compact and cfg.showQualityBar then
+    if showForm then
         local quality = Sport.clamp(view.quality, 0.0, 1.0, 0.0)
 
         UI.text(L('session.quality'), x - width * 0.5 + 0.012, cursor - 0.009 * scale, {
@@ -196,7 +236,16 @@ local function draw(view)
                 align = 'right',
             })
 
-        cursor = cursor + 0.016 * scale
+        cursor = cursor + ROW_FORM * scale
+    end
+
+    -- --- Footer -----------------------------------------------------------------------
+    if showFooter then
+        UI.text(L('session.cancel', view.cancelLabel), x - width * 0.5 + 0.012,
+            cursor - 0.009 * scale, {
+                scale = 0.26,
+                colour = 'textDim',
+            })
 
         if view.streak > 1.001 then
             UI.text(L('session.streak', view.streak), x + width * 0.5 - 0.012,
@@ -206,12 +255,6 @@ local function draw(view)
                     align = 'right',
                 })
         end
-
-        UI.text(L('session.cancel', view.cancelLabel), x - width * 0.5 + 0.012,
-            cursor - 0.009 * scale, {
-                scale = 0.26,
-                colour = 'textDim',
-            })
     end
 
     -- --- Judgement flash --------------------------------------------------------------
@@ -262,15 +305,13 @@ local function pressedControl()
     return nil
 end
 
---- The label for the cancel key, for the on-screen hint. GetControlInstructionalButton
---- returns the game's own glyph string, which is right on a controller too.
+--- The label for the cancel key. The configured name wins, because the game answers `b_1004`
+--- for BACKSPACE and "hold [b_1004] to stop" is not a hint.
 local function cancelLabel()
-    local raw = GetControlInstructionalButton(0, Config.Minigame.cancelKey or 177, true)
-    if type(raw) == 'string' and raw ~= '' then
-        -- The native returns a token like 't_BACK'; the leading 't_' is markup.
-        return (raw:gsub('^t_', ''))
-    end
-    return 'BACKSPACE'
+    local configured = Config.Minigame.cancelLabel
+    if type(configured) == 'string' and configured ~= '' then return configured end
+
+    return UI.keyLabel(Config.Minigame.cancelKey or 177, 'BACKSPACE')
 end
 
 -- ---------------------------------------------------------------------------------------

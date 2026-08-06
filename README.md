@@ -11,8 +11,8 @@ when nobody is training.
 ## Features
 
 - **Finds the equipment itself** - the object pool around the player is matched against a
-  catalogue of 20 exercises spread over 94 prop models: benches, dumbbells, pull-up bars,
-  heavy bags, treadmills, yoga mats, rowing machines, battle ropes. `/sportscan` prints
+  catalogue of 18 exercises over 31 verified prop models: benches, dumbbells, pull-up bars,
+  heavy bags, treadmills, yoga mats, rowing machines, battle ropes. `/vsportscan` prints
   what your own map actually has, including anything inside a custom MLO, ready to paste
   into the config.
 - **A rhythm QTE, not a progress bar** - each rep asks for a short sequence of random keys
@@ -26,17 +26,17 @@ when nobody is training.
 - **Deliberately not superhero** - at 100% in everything a character has a quarter more
   punch, holds their breath for 75 seconds instead of 45, and sprints 12% faster. Two knobs
   scale or disable the lot. See [CONFIG.md](CONFIG.md) for the exact table.
-- **A recovery system, not a grind** - a character may gain 50 points across all stats per
-  25 hour cycle, and no more than 25 into any one of them. Once it is spent they are
+- **A recovery system, not a grind** - a character may gain 24 points across all stats per
+  25 hour cycle, and no more than 12 into any one of them. Once it is spent they are
   blocked until they recover. Whey cuts the 25 hour wait to 8.
 - **Fatigue on top of that** - the first three workouts of an afternoon are worth more than
   the next twenty combined. Grinding is not forbidden, it is pointless, which works better
   than a refusal.
-- **Decay** - 10 points a day of absence, after one free day, computed from a timestamp so it
+- **Decay** - 5 points a day of absence, after one free day, computed from a timestamp so it
   runs while the player is offline. Per-stat rates, a floor, and optional peak protection.
-- **Passive training** - sprinting builds stamina and holding your breath underwater builds
-  lung capacity, both small enough that they never replace the gym.
-- **Built to be driven from outside** - fifty exports so a drug script can boost gains, apply
+- **Passive training** - running, cycling, swimming and diving all pay out, capped at 9% of a
+  dedicated gym day and stopped partway up each stat, so they never replace the equipment.
+- **Built to be driven from outside** - seventy-two exports so a drug script can boost gains, apply
   debuffs, drain stamina, stop decay, refund the recovery timer or bypass it entirely. That
   is the whole of [API.md](API.md).
 - **Native UI** - the workout HUD and the stats panel are DrawRect and DrawText. No
@@ -62,7 +62,7 @@ system, so notifications fall through to this resource's own toast. Handcuff det
 read from the player's state bag first on every framework, because that is where every modern
 resource puts it. Everything else behaves identically.
 
-Run `/sportinfo` in game to print what was actually detected.
+Run `/vsportinfo` in game to print what was actually detected.
 
 ## Installation
 
@@ -79,25 +79,46 @@ There is no build step. Everything ships as Lua source.
 
 ### Then, in game
 
-Stand in your gym and run `/sportscan`. It lists every object around you, says whether the
+Stand in your gym and run `/vsportscan`. It lists every object around you, says whether the
 catalogue already knows it, and names the ones it does. Anything marked `-` is a prop your
 map has and this resource does not - add it to `Config.ExtraEquipment` and it becomes usable.
 
 For gym equipment that is baked into an MLO rather than placed as an object, stand on the
-spot and run `/sportspot pull_ups` to get a `Config.Spots` line to paste.
+spot and run `/vsportspot pull_ups` to get a `Config.Spots` line to paste.
 
 ## Usage
 
+Every command is prefixed `vsport` so nothing here can collide with a `/vsport` from another
+resource. Rename any of them in `Config.Commands`.
+
 | Command | Effect |
 |---|---|
-| `/sport` | Open the stats panel |
-| `/sportinfo` | Print what was detected, and your current numbers, to F8 |
-| `/sportscan [radius]` | List the props around you and whether they are usable |
-| `/sportspot <equipment>` | Print a `Config.Spots` line for where you stand |
-| `/sportadmin ...` | Admin: get, set, add, reset, buff, allowance, whey, block, top |
+| `/vsport` | Open the stats panel |
+| `/vsportinfo` | Print what was detected, and your current numbers, to F8 |
+| `/vsportscan [radius]` | List the props around you and whether they are usable |
+| `/vsportspot <equipment>` | Print a `Config.Spots` line for where you stand |
+| `/vsportoffset` | Print a `modelOverrides` offset for the prop you are facing |
+| `/vsportadmin ...` | Admin: get, set, add, reset, buff, allowance, whey, block, top |
 | `E` (configurable) | Start a workout at the equipment you are looking at |
 | `G` (configurable) | Cycle exercises when a prop offers more than one |
-| Hold `BACKSPACE` | Stop a workout in progress; you keep what you earned |
+| Hold `RETOUR`/`BACKSPACE` | Stop a workout in progress; you keep what you earned |
+
+The panel also opens from an event, so it drops into **qb-radialmenu** or any other menu with
+no glue code — see [API.md](API.md#client-events-for-a-radial-menu).
+
+### The QTE keys
+
+Six keys, all under the left hand, and nothing else — reaching for `SPACE` mid-sequence means
+missing the next prompt for a reason that has nothing to do with timing.
+
+| Layout | Keys |
+|---|---|
+| AZERTY | `A` `Z` `E` `Q` `S` `D` |
+| QWERTY | `Q` `W` `E` `A` `S` `D` |
+
+Those are the **same six physical keys**: GTA binds a control to a key position, so only the
+printed letter differs. `Config.Minigame.keyboardLayout` decides which letters are drawn, and
+`auto` picks AZERTY when the locale is French.
 
 ## How the progression actually works
 
@@ -107,12 +128,35 @@ Four mechanisms, each doing a different job. They are meant to be read together.
 |---|---|---|
 | **Sessions to max** | 100 perfect sessions take one stat from 0 to 100 | `Config.Stats.*.sessionsToMax` |
 | **Fatigue** | The 5th workout in 90 minutes is worth 15% of the 1st | `Config.Progression.fatigue` |
-| **Allowance** | 50 points per 25h cycle, 25 max into any one stat, then blocked | `Config.Allowance` |
-| **Decay** | -10 a day of absence, after one free day | `Config.Decay` |
+| **Allowance** | 24 points per 25h cycle, 12 max into any one stat, then blocked | `Config.Allowance` |
+| **Decay** | -5 a day of absence, after one free day | `Config.Decay` |
 
-At the shipped defaults, a committed player reaches 100% in one stat in **about three weeks**
-and in all three in **seven to eight**, and they have to keep showing up to hold it - decay
-takes back 10 a day against a realistic 6 to 9 a day of gains.
+### What that works out to
+
+Measured by simulating the real progression functions day by day, with the allowance ledger and
+the decay rules in play. **All three stats to 100%:**
+
+| Player | Sessions/day | Form | Days |
+|---|---|---|---|
+| Casual, one rest day in three | 9 | 85% | ~59 |
+| Dedicated, one rest day a week | 18 | 90% | ~22 |
+| Dedicated, every day | 21 | 90% | ~16 |
+| **Dedicated, every day, plays the QTE well** | **21** | **100%** | **~13** |
+| Does nothing else | 60 | 100% | ~5 |
+
+So **a fortnight** is the target for somebody who trains daily and hits their prompts, and
+playing the minigame well is worth about three days of it. One stat on its own is roughly a
+third of those figures.
+
+The last row is what grinding actually buys: **one day.** A player attempting sixty sessions a day
+measures at fifteen days against the dedicated player's sixteen, because the 24-point allowance
+stops paying long before the day runs out - most of those sessions are refused. That is the whole
+point of the allowance, and `Config.Allowance.total` is the knob. Section 5b of `config.lua`
+explains the trade-off before you touch it.
+
+Holding it is its own job - decay takes back 5 per day of absence, bounded by
+`Config.Decay.peakProtection` (20 by default) so a fortnight away costs a known, recoverable
+amount rather than everything.
 
 Three ready-made balances (arcade, default, hardcore) are written out in section 5 of
 `config.lua`, each internally consistent, ready to paste over the defaults.
@@ -127,7 +171,7 @@ Config.Allowance.total   = 50.0          -- points per cycle, across all stats
 Config.Allowance.perStat = 25.0          -- ...and into any single stat
 Config.Allowance.window  = 25 * 3600     -- how long a spent allowance takes to come back
 
--- How hard it is to keep. -10 a day of absence, after one free day.
+-- How hard it is to keep. -5 a day of absence, after one free day.
 Config.Decay.amount = 10.0
 Config.Decay.grace  = 24 * 3600
 
@@ -160,18 +204,36 @@ exports['v-sport']:ReduceRecovery(source, 25 * 3600)              -- what whey d
 exports['v-sport']:Exhaust(source, 0.0, 45)                       -- cannot sprint for 45s
 exports['v-sport']:RestoreStamina(source, 1.0)
 exports['v-sport']:SetEffectOverride(source, 'sprintSpeed', 0.8, 60, 'multiply')
+
+-- Model a HABIT rather than an event. This is the part most resources need and
+-- most training scripts do not have.
+exports['v-sport']:SetStatCeiling(source, 'breath', 55, 0)        -- a smoker stops at 55
+exports['v-sport']:AddDrain(source, 'stamina', 1.5, 3600)         -- -1.5/hour while it lasts
+exports['v-sport']:SetDecayMultiplier(source, 2.0, 86400)         -- loses 20/day, not 10
+
+-- Or a whole drug in one call, undoable in one call
+local applied = exports['v-sport']:ApplyPackage(source, { ... })
+exports['v-sport']:ClearPackage(source, applied)
 ```
 
-Fifty exports, every one with an event twin, plus state bags and the events this resource
-fires. All of it, with worked examples, is in [API.md](API.md).
+**A habit is not an event.** `RemoveStat(src, 'stamina', 5)` models somebody who had one bad
+cigarette; it does not model a smoker. What models a smoker is being held back for as long as
+they smoke - which is what the three condition exports above are for. None of them touches a
+stat at the moment it is applied, so they read as a consequence rather than as a fine.
+
+Sixty exports, every one with an event twin, plus state bags and the events this resource fires.
+All of it, with complete worked examples for smoking, drug abuse and a x2 booster with a
+comedown, is in [API.md](API.md).
 
 ## Documentation
 
 | File | What is in it |
 |---|---|
 | [CONFIG.md](CONFIG.md) | Server owner's guide: balancing, the effect table, finding your props. |
+| [PROPS.md](PROPS.md) | Every supported prop model, and how to add your own. Generated from the catalogue. |
 | [API.md](API.md) | Every export, event and state bag another resource can use. |
 | [ITEMS.md](ITEMS.md) | Adding whey and the other consumables, per framework, with the blocks to paste. |
+| [images/README.md](images/README.md) | The item icons, and converting them to PNG for your inventory. |
 | [CHANGELOG.md](CHANGELOG.md) | What changed, English then French. |
 | [ERROR_LOG.md](ERROR_LOG.md) | Problems hit, root causes, and the rule that stops each recurring. |
 | [RULES.md](RULES.md) | Conventions for anyone working on the resource. |
@@ -224,7 +286,7 @@ processus navigateur et rien à rafraîchir quand personne ne s'entraîne.
 - **Il trouve le matériel tout seul** - le pool d'objets autour du joueur est comparé à un
   catalogue de 20 exercices répartis sur 94 modèles de props : bancs, haltères, barres de
   traction, sacs de frappe, tapis de course, tapis de yoga, rameurs, cordes ondulatoires.
-  `/sportscan` affiche ce que votre carte contient réellement, y compris dans un MLO
+  `/vsportscan` affiche ce que votre carte contient réellement, y compris dans un MLO
   personnalisé, prêt à coller dans la configuration.
 - **Un QTE rythmique, pas une barre de progression** - chaque répétition demande une courte
   séquence de touches aléatoires sur une bande de timing. Zone parfaite, zone correcte, ou
@@ -236,13 +298,13 @@ processus navigateur et rien à rafraîchir quand personne ne s'entraîne.
 - **Volontairement pas des super-héros** - à 100 % partout, un personnage frappe un quart plus
   fort, tient 75 secondes en apnée au lieu de 45, et sprinte 12 % plus vite. Deux réglages
   permettent de tout diminuer ou de tout désactiver.
-- **Un système de récupération, pas du farm** - un personnage peut gagner 50 points toutes
-  statistiques confondues par cycle de 25 heures, et pas plus de 25 dans une seule. Une fois
+- **Un système de récupération, pas du farm** - un personnage peut gagner 24 points toutes
+  statistiques confondues par cycle de 25 heures, et pas plus de 12 dans une seule. Une fois
   épuisé, il est bloqué jusqu'à récupération. La whey ramène les 25 heures à 8.
 - **De la fatigue par-dessus** - les trois premières séances d'un après-midi valent plus que
   les vingt suivantes réunies. Le farm n'est pas interdit, il est inutile, ce qui fonctionne
   mieux qu'un refus.
-- **Perte de niveau** - 10 points par jour d'absence, après un jour de grâce, calculée depuis
+- **Perte de niveau** - 5 points par jour d'absence, après un jour de grâce, calculée depuis
   un horodatage : elle tourne donc aussi hors ligne.
 - **Entraînement passif** - le sprint travaille l'endurance et l'apnée sous l'eau travaille
   les poumons, assez peu pour ne jamais remplacer la salle.
@@ -255,7 +317,7 @@ processus navigateur et rien à rafraîchir quand personne ne s'entraîne.
 **Ce qui diffère selon le framework.** ESX n'a ni gang ni citizenid : les clés `gang:` ne
 s'appliquent jamais et la clé de personnage est l'identifier. ox_core utilise des groupes au
 lieu des métiers et ne fournit aucun système de notification, donc les messages passent par
-les toasts de cette ressource. Tapez `/sportinfo` en jeu pour voir ce qui a été détecté.
+les toasts de cette ressource. Tapez `/vsportinfo` en jeu pour voir ce qui a été détecté.
 
 ## Installation
 
@@ -271,13 +333,13 @@ Aucune étape de build.
 
 ### Ensuite, en jeu
 
-Placez-vous dans votre salle et tapez `/sportscan`. La commande liste tous les objets autour
+Placez-vous dans votre salle et tapez `/vsportscan`. La commande liste tous les objets autour
 de vous, indique si le catalogue les connaît déjà, et nomme ceux qu'il connaît. Tout ce qui
 est marqué `-` est un prop que votre carte possède et que la ressource ignore : ajoutez-le à
 `Config.ExtraEquipment` et il devient utilisable.
 
 Pour le matériel intégré au modèle d'un MLO plutôt que posé en objet, placez-vous dessus et
-tapez `/sportspot pull_ups` pour obtenir une ligne `Config.Spots` à coller.
+tapez `/vsportspot pull_ups` pour obtenir une ligne `Config.Spots` à coller.
 
 ## Comment fonctionne réellement la progression
 
@@ -287,12 +349,35 @@ Quatre mécanismes, chacun avec un rôle différent. Ils se lisent ensemble.
 |---|---|---|
 | **Séances pour le max** | 100 séances parfaites font passer une stat de 0 à 100 | `Config.Stats.*.sessionsToMax` |
 | **Fatigue** | La 5e séance en 90 minutes vaut 15 % de la 1re | `Config.Progression.fatigue` |
-| **Quota** | 50 points par cycle de 25 h, 25 max dans une seule stat, puis bloqué | `Config.Allowance` |
-| **Perte** | -10 par jour d'absence, après un jour de grâce | `Config.Decay` |
+| **Quota** | 24 points par cycle de 25 h, 12 max dans une seule stat, puis bloqué | `Config.Allowance` |
+| **Perte** | -5 par jour d'absence, après un jour de grâce | `Config.Decay` |
 
-Avec les valeurs par défaut, un joueur assidu atteint 100 % dans une stat en **environ trois
-semaines** et dans les trois en **sept à huit**, et il doit continuer à venir pour les garder :
-la perte reprend 10 par jour contre 6 à 9 par jour de gains réalistes.
+### Ce que ça donne concrètement
+
+Mesuré en simulant les vraies fonctions de progression jour par jour, quota et pertes compris.
+**Les trois statistiques à 100 % :**
+
+| Joueur | Séances/jour | Forme | Jours |
+|---|---|---|---|
+| Occasionnel, un jour de repos sur trois | 9 | 85 % | ~59 |
+| Assidu, un jour de repos par semaine | 18 | 90 % | ~22 |
+| Assidu, tous les jours | 21 | 90 % | ~16 |
+| **Assidu, tous les jours, joue bien le QTE** | **21** | **100 %** | **~13** |
+| Ne fait rien d'autre | 60 | 100 % | ~5 |
+
+**Deux semaines** est donc la cible pour qui s'entraîne chaque jour et réussit ses touches, et
+bien jouer le minijeu vaut environ trois jours. Une seule statistique représente à peu près le
+tiers de ces chiffres.
+
+La dernière ligne montre ce que le farm rapporte réellement : **un jour.** Qui tente soixante
+séances par jour mesure quinze jours contre seize pour le joueur assidu, parce que le quota de 24
+points cesse de payer bien avant la fin de la journée et refuse la plupart de ces séances. C'est
+tout l'objet du quota. `Config.Allowance.total` est le réglage, et la section 5b explique avant d'y
+toucher.
+
+Les conserver est un travail à part : la perte reprend 5 par jour d'absence, bornée par
+`Config.Decay.peakProtection` (20 par défaut) pour qu'une absence de deux semaines coûte un
+montant connu et récupérable plutôt que tout.
 
 Trois équilibrages prêts à l'emploi (arcade, défaut, hardcore) sont écrits dans la section 5
 de `config.lua`, chacun cohérent, prêt à coller par-dessus les valeurs par défaut.
@@ -329,7 +414,7 @@ exports['v-sport']:ApplyMultiplier(source, nil, 2.0, 1800)        -- gains x2, 3
 exports['v-sport']:ApplyBuff(source, 'strength', 15, 300)         -- +15 force, 5 min
 exports['v-sport']:ApplyDebuff(source, 'stamina', 20, 600)        -- -20 endurance, 10 min
 
--- Empecher la perte de 10 par jour
+-- Empecher la perte de 5 par jour
 exports['v-sport']:SetDecayImmunity(source, 48 * 3600)
 
 -- Contourner le temps de recuperation, en partie ou totalement
@@ -340,18 +425,36 @@ exports['v-sport']:ReduceRecovery(source, 25 * 3600)              -- ce que fait
 -- Agir directement sur le corps
 exports['v-sport']:Exhaust(source, 0.0, 45)                       -- ne peut plus sprinter
 exports['v-sport']:RestoreStamina(source, 1.0)
+
+-- Modeliser une HABITUDE, pas un evenement
+exports['v-sport']:SetStatCeiling(source, 'breath', 55, 0)        -- un fumeur plafonne a 55
+exports['v-sport']:AddDrain(source, 'stamina', 1.5, 3600)         -- -1,5/heure tant que ca dure
+exports['v-sport']:SetDecayMultiplier(source, 2.0, 86400)         -- perd 20/jour au lieu de 10
+
+-- Ou toute une drogue en un appel, annulable en un appel
+local applied = exports['v-sport']:ApplyPackage(source, { ... })
+exports['v-sport']:ClearPackage(source, applied)
 ```
 
-Cinquante exports, chacun avec un équivalent en événement, plus les state bags et les
-événements émis. Tout est dans [API.md](API.md).
+**Une habitude n'est pas un événement.** `RemoveStat(src, 'stamina', 5)` modélise quelqu'un qui a
+mal fumé une fois ; ça ne modélise pas un fumeur. Ce qui modélise un fumeur, c'est d'être bridé
+tant qu'il fume, et c'est à ça que servent les trois exports de condition ci-dessus. Aucun ne
+touche une statistique au moment où il est posé : ils se lisent comme une conséquence, pas comme
+une amende.
+
+Soixante exports, chacun avec un équivalent en événement, plus les state bags et les événements
+émis. Tout, avec des exemples complets pour la fumette, l'abus de drogue et un booster x2 avec sa
+descente, est dans [API.md](API.md).
 
 ## Documentation
 
 | Fichier | Contenu |
 |---|---|
 | [CONFIG.md](CONFIG.md) | Guide du propriétaire : équilibrage, tableau des effets, trouver vos props. |
+| [PROPS.md](PROPS.md) | Tous les props compatibles, et comment ajouter les vôtres. Généré depuis le catalogue. |
 | [API.md](API.md) | Chaque export, événement et state bag utilisable par une autre ressource. |
 | [ITEMS.md](ITEMS.md) | Ajouter la whey et les autres consommables, par framework. |
+| [images/README.md](images/README.md) | Les icones des items, et leur conversion en PNG. |
 | [CHANGELOG.md](CHANGELOG.md) | Ce qui a changé. |
 | [ERROR_LOG.md](ERROR_LOG.md) | Problèmes rencontrés, causes, et la règle qui évite la récidive. |
 

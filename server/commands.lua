@@ -248,6 +248,44 @@ CreateThread(function()
 end)
 
 -- ---------------------------------------------------------------------------------------
+-- Who may use the developer tools
+-- ---------------------------------------------------------------------------------------
+--
+-- /vsportprop, /vsportgoto, /vsportfind, /vsportscan, /vsportspot and /vsportoffset run entirely
+-- on the client - they teleport the player, spawn a local prop and print to their own console -
+-- so the client is where they have to be gated. The client never decides for itself: it asks
+-- here, and until an answer arrives the gate is CLOSED.
+--
+-- Config.Commands.restrictDevCommands = false opens them to everyone, which is reasonable on a
+-- development server and nowhere else. Before this existed the flag was declared, documented and
+-- read by nothing, so every player had a map-wide teleport in their chat suggestions.
+
+--- Tell one client whether they may use the developer commands.
+local function pushDevAccess(src)
+    if not src or src == 0 then return end
+
+    local allowed = Config.Commands.restrictDevCommands == false or Bridge.isAdmin(src)
+    TriggerClientEvent('vsport:client:DevAccess', src, allowed == true)
+end
+
+--[[
+    The client asks on load, and may ask again.
+
+    Asking again matters: an admin promoted mid-session, or one whose ace arrives from a
+    permissions resource that loads after this one, would otherwise stay locked out until they
+    reconnected. There is nothing to abuse in re-asking - the answer is computed here every time
+    and a non-admin gets `false` however often they ask.
+]]
+RegisterNetEvent('vsport:server:RequestDevAccess', function()
+    pushDevAccess(source)
+end)
+
+-- And pushed unasked when a profile loads, so the usual case needs no round trip from the client.
+AddEventHandler('vsport:server:PlayerLoaded', function(src)
+    pushDevAccess(src)
+end)
+
+-- ---------------------------------------------------------------------------------------
 -- Boot banner
 -- ---------------------------------------------------------------------------------------
 
@@ -267,5 +305,38 @@ CreateThread(function()
 
     if not Config.Effects.enabled then
         Sport.print('effects are OFF - stats are a roleplay number on this server')
+    end
+
+    --[[
+        POINT THE OPERATOR AT THE NEXT STEP.
+
+        Eight of the shipped exercises have no base-game model at all - kettlebells, treadmills,
+        rowing machines and the rest - because every name they used to list was rejected by
+        IsModelValid. They are waiting for a gym MLO's model names, and on a fresh install nobody
+        knows that: the resource simply appears to be missing half its equipment.
+
+        So it says so, once, with the command that fixes it. Two lines at boot against an evening
+        of wondering why the treadmill does nothing.
+    ]]
+    local waiting = {}
+    for _, key in ipairs(Equipment.keys) do
+        local entry = Equipment.get(key)
+        if entry and #(entry.models or {}) == 0 then
+            waiting[#waiting + 1] = key
+        end
+    end
+
+    if #waiting > 0 then
+        Sport.print(('%d exercise%s waiting for a model from your map: %s')
+            :format(#waiting, #waiting == 1 and ' is' or 's are', table.concat(waiting, ', ')))
+        Sport.print(('stand in front of one and run /%s <exercise> - no restart needed. '
+            .. 'See PROPS.md'):format(Config.Commands.add or 'vsportadd'))
+    end
+
+    local added = 0
+    for _ in pairs(Equipment.overlay or {}) do added = added + 1 end
+    if added > 0 then
+        Sport.print(('%d exercise%s extended in game (data/custom.json). /%s prints them as config')
+            :format(added, added == 1 and '' or 's', Config.Commands.export or 'vsportexport'))
     end
 end)

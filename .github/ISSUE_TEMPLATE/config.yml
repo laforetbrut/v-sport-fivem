@@ -1,0 +1,21 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Read the docs first / Lisez la doc d'abord
+    url: https://github.com/laforetbrut/v-sport-fivem#readme
+    about: Installation, the dependency table and the four numbers that decide everything. Most questions are answered here. / Installation, tableau des dépendances et les quatre nombres qui décident de tout.
+
+  - name: Compatible props, and adding your own / Props compatibles, et ajouter les vôtres
+    url: https://github.com/laforetbrut/v-sport-fivem/blob/main/PROPS.md
+    about: Every supported prop model, and the in-game commands that add one from your own MLO with no restart. / Tous les modèles pris en charge, et les commandes qui en ajoutent un depuis votre MLO sans redémarrage.
+
+  - name: Configuration and balancing / Configuration et équilibrage
+    url: https://github.com/laforetbrut/v-sport-fivem/blob/main/CONFIG.md
+    about: How long a maxed character should take, the effect table, passive training, and who may run which command. / Durée pour atteindre le maximum, tableau des effets, entraînement passif, et qui peut lancer quelle commande.
+
+  - name: Developer API / API développeur
+    url: https://github.com/laforetbrut/v-sport-fivem/blob/main/API.md
+    about: Every export and event a drug, smoking or injury script can call. / Chaque export et event appelable depuis un script de drogue, de cigarette ou de blessure.
+
+  - name: Ask a question / Poser une question
+    url: https://github.com/laforetbrut/v-sport-fivem/discussions
+    about: Support, setup help and ideas. Issues are for reproducible bugs and concrete requests. / Support, aide à l'installation et idées. Les issues sont pour les bugs reproductibles et les demandes concrètes.
