@@ -162,6 +162,46 @@ end
 -- Requirements
 -- ---------------------------------------------------------------------------------------
 
+--[[
+    A static spot's own job restriction, enforced HERE rather than trusted from the client.
+
+    Config.Spots entries carry an optional `job`. The client's spot builder stored it and nothing ever
+    read it, so a gym an operator believed was locked to the police was open to everyone. A documented
+    restriction that does not exist is worse than not offering one.
+
+    The server is never told WHICH spot was used, only the coordinates the client asked about, so the
+    spot is found by proximity against the server's own copy of Config.Spots - the same list, and
+    nothing the client said about it has to be believed.
+]]
+local function spotJobFailure(src, coords)
+    if type(Config.Spots) ~= 'table' then return nil end
+
+    for _, spot in ipairs(Config.Spots) do
+        local job = spot.job
+        local at = spot.coords
+
+        if type(job) == 'string' and job ~= '' and type(at) ~= 'nil' then
+            -- A little wider than the spot's own radius: the request carries the position the
+            -- player was standing at, which is up to `useDistance` from the spot itself.
+            local radius = (tonumber(spot.radius) or Config.General.useDistance or 2.5) + 1.5
+            local dx, dy, dz = at.x - coords.x, at.y - coords.y, at.z - coords.z
+
+            if (dx * dx + dy * dy + dz * dz) <= (radius * radius) then
+                local roles = Bridge.roles(src)
+                if roles.job ~= job and roles.jobType ~= job
+                    and ('gang:' .. tostring(roles.gang)) ~= job then
+                    return L('notify.requirement_job')
+                end
+
+                -- Inside a spot they are allowed to use. Nearer spots cannot also apply.
+                return nil
+            end
+        end
+    end
+
+    return nil
+end
+
 --- Why `src` may not use `entry`, or nil. Re-checked here even though the client checked:
 --- the client's copy of the config is whatever the client feels like reporting.
 local function requirementFailure(src, entry, profile)
@@ -299,6 +339,10 @@ RegisterNetEvent('vsport:server:RequestSession', function(requestId, key, coords
 
     -- --- Requirements -------------------------------------------------------------------
     local failure = requirementFailure(src, entry, profile)
+    if failure then return answer(nil, failure) end
+
+    -- And a static spot's own job restriction, which until 1.0.1 was stored and never checked.
+    failure = spotJobFailure(src, coords)
     if failure then return answer(nil, failure) end
 
     -- --- Allowance ------------------------------------------------------------------------

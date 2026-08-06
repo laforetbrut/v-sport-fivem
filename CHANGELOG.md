@@ -7,6 +7,94 @@ uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.0.1] - 2026-08-07
+
+A hardening release. Nothing was added for its own sake: an audit went through the resource across
+six dimensions - framework compatibility, latent correctness, performance, server trust boundaries,
+dead code, and documentation against reality - and every finding was adversarially re-checked before
+being acted on. Fifty-seven survived that. These are the ones that mattered.
+
+### Fixed
+
+- **Every character on an account shared one body.** `Bridge.identifier` answered with the Rockstar
+  licence when the framework had not finished loading the character, instead of nil - and the caller
+  retries for twenty seconds ON NIL ONLY, so it never retried. The profile was keyed on the licence,
+  and the framework's own load event arriving later with the real citizenid was dropped. The trigger
+  was routine: the client announces itself as soon as a ped exists, which on qb-core is true while
+  the multicharacter selector is still open. So `Config.Persistence.scope = 'character'`, the
+  documented default, silently behaved as `'license'` on the one framework that had been tested.
+- **A database hiccup could erase a character.** `Database.load` returned plain nil both for "this
+  character has no row yet" and "the query failed", and the caller read that as a new character: it
+  installed a blank profile and the next autosave wrote those zeroes over a real saved row. It now
+  answers `row, ok`, and on a failure the session runs with no profile rather than with a false one.
+- **The minigame was silent on any server with interact-sound installed.** Every cue is a GTA
+  *frontend* sound with a soundset; interact-sound plays files from its own resource and takes no
+  soundset. So routing them through it played nothing, and because a fired event counted as success
+  the native fallback was never reached. `Config.Compat.soundResource` is gone with the routing.
+- **No per-model placement was ever applied on a server with a target.** The target integration built
+  its candidate without the `model` field, so `Equipment.staging` returned generic values and an
+  incline bench got a flat bench's offset. `Session.start` now derives the model from the entity when
+  a caller omits it, so no future integration can repeat it.
+- **Stopping a workout teleported the player a metre into the air**, then dropped them - and put them
+  down at the *bench's* position rather than their own. A ped's coordinates are its feet, so the
+  `+ 1.0` was clearance it did not need. It now returns them to where they were standing.
+- **Item registration died on ox_core, twice in the same file.** The core object there is an exports
+  table, and reading a key it does not have RAISES rather than returning nil - so `core.Functions`
+  threw and every item after it went unregistered. The second occurrence, ten lines below the comment
+  explaining the hazard, was found by a new assertion rather than by reading.
+- **`/vsportadmin` did not exist on ESX.** `object.RegisterCommand` is a method and was called
+  without its object, so ESX read the command name as its own self and registered nothing.
+- **Job-gated equipment was closed to everyone on ox_core** - `Compat.roles` had no ox branch at all -
+  and a requirement written against a job *type* was refused by the client while passing on the
+  server, because only the server read `jobType`.
+- **A static spot's `job` restriction did nothing.** It was stored by the client and read by nobody,
+  so a gym an operator believed was locked to the police was open to everyone. Now enforced on the
+  server, which finds the spot from the coordinates rather than trusting the client.
+- **`Config.Spots` were unreachable on any server with a target.** The prompt loop returned early, and
+  a target has nothing to attach to for a coordinate - so equipment baked into an MLO could not be
+  used at all. The loop now runs for spots and stays quiet about props, which is what the config had
+  always promised.
+- **`ApplyPackage` leaked multipliers.** An all-stat multiplier creates one per stat and returns the
+  group; only the first id was recorded, so `ClearPackage` removed one of three and a drug's gain
+  boost outlived the drug.
+- **The tuner's centred hold never worked.** It saved `spec.centred` and every reader looks for
+  `spec.centre`, so a long bar came back attached by its origin instead of its middle. One letter.
+- **`/vsportadd` resurrected models that `/vsportremove` had taken out**, because it reseeded from the
+  shipped list on every add.
+- Also: the interaction prompt no longer duplicates a target resource; okokNotify is passed a type it
+  recognises; `/vsportitems` detects ESX (`Bridge.framework()` answers `es_extended`, and the check
+  was for `esx`); the per-frame draw loop is gated on the 6 m draw budget rather than the 20 m
+  detection radius; and `Config.Persistence.saveInterval` is the field that actually drives the save
+  cadence, which the documentation always said it was and which nothing read.
+
+### Changed
+
+- **Free weights are lifted where you stand.** Dumbbells and barbells on the ground no longer move or
+  attach the player: the body turns to face the weight and lifts it in place. That deletes
+  `animOffset` for all thirteen models, and with it the most fragile data in the resource - an offset
+  measured from a prop's origin cannot be right unless you know how high the map put that origin, and
+  the alignment studio, which spawns its own copy, cannot know. Benches and racks still attach,
+  because being in the right place is what those exercises are.
+- **A player's F8 is not a log file.** Client-side `Sport.print` and `Sport.warn` now reach admins
+  only, or anybody with `Config.Debug.enabled`. Server output is untouched. Ordinary players were
+  seeing diagnostics written for whoever runs the server.
+- Three config fields that were declared, documented and read by nothing are gone rather than
+  half-true: `Config.Detection.matchAttached`, `Config.Security.requireToken` and
+  `Config.UI.workout.showStatGains`. `Config.Notifications.cooldownActive` is now read instead.
+- Three `prop_muscle_bench` models removed. Two are incline benches and one is a pull-up frame, all
+  named as if they were flat weight benches, and none could be measured reliably.
+
+### Added
+
+- **`tools/check.py` gained four assertions**, each for a class of defect found above: the framework
+  object is never indexed raw, no raw `print()` sits on a gameplay client path, every `roles()` answer
+  carries `jobType`, and `data/custom.json` ships empty. The first one caught a second live instance
+  of its own bug on its first run.
+- **`/vsportprop <exercise> here`** aligns against whatever object is in front of you, with no model
+  filter, no search and no studio copy - and reports which model it turned out to be.
+
+---
+
 ## [1.0.0] — 2026-08-06
 
 First release.
@@ -85,7 +173,7 @@ First release.
   minute, and is entirely configurable.
 
   Three separate mechanisms keep the equipment ahead, and the check script asserts the result
-  rather than trusting it: the caps hold the best possible passive day to 9% of a dedicated gym
+  rather than trusting it: the caps hold the best possible passive day to 11% of a dedicated gym
   day, a per-activity `ceiling` stops passive gains dead partway up each stat, and passive
   activity does not reset the decay clock - so a player who only cycles loses ground.
 - **Five exercises deliberately off by default, and some props left out.** Dip bars, the skipping
@@ -175,6 +263,68 @@ First release.
 # Journal des modifications (Version Française)
 
 Toutes les modifications notables de v-sport. La plus récente en premier.
+
+---
+
+## [1.0.1] - 2026-08-07
+
+Une version de consolidation. Un audit a parcouru la ressource sur six dimensions - compatibilite des
+frameworks, correction latente, performance, frontieres de confiance serveur, code mort, et
+documentation contre realite - et chaque trouvaille a ete re-verifiee de facon adverse avant d'etre
+traitee. Cinquante-sept ont survecu.
+
+### Corrige
+
+- **Tous les personnages d'un compte partageaient un seul corps.** `Bridge.identifier` renvoyait la
+  licence quand le framework n'avait pas fini de charger le personnage, au lieu de nil - et l'appelant
+  ne reessaie QUE sur nil. Le profil etait donc cle sur la licence, et l'evenement de chargement du
+  framework, arrivant plus tard avec le vrai citizenid, etait ignore. `scope = 'character'`, le defaut
+  documente, se comportait silencieusement comme `'license'` sur le seul framework teste.
+- **Un incident de base de donnees pouvait effacer un personnage.** `Database.load` renvoyait nil
+  aussi bien pour « pas encore de ligne » que pour « la requete a echoue », et l'appelant y lisait un
+  nouveau personnage : il installait un profil vide, et la sauvegarde suivante ecrivait ces zeros sur
+  une vraie ligne. Elle repond maintenant `row, ok`.
+- **Le minijeu etait muet sur tout serveur avec interact-sound.** Les cues sont des sons *frontend* de
+  GTA avec un soundset ; interact-sound joue des fichiers et ne prend pas de soundset. Le routage ne
+  jouait rien et empechait le native de s'executer.
+- **Aucun placement par modele ne s'appliquait sur un serveur avec un target.** L'integration target
+  construisait son candidat sans le champ `model`, donc un banc incline recevait l'offset d'un banc
+  plat.
+- **Arreter une seance teleportait le joueur un metre en l'air**, puis le laissait tomber, et le
+  reposait a la position du *banc* plutot qu'a la sienne.
+- **L'enregistrement des items mourait sur ox_core, deux fois dans le meme fichier.** L'objet core y
+  est une table d'exports, et lire une cle absente **leve** au lieu de renvoyer nil.
+- **`/vsportadmin` n'existait pas sur ESX** : la methode etait appelee sans son objet.
+- **Le materiel restreint par metier etait ferme a tous sur ox_core**, et une restriction ecrite
+  contre un *type* de metier etait refusee par le client tout en passant cote serveur.
+- **La restriction `job` d'un spot statique ne faisait rien** : stockee par le client, lue par
+  personne. Elle est maintenant appliquee cote serveur.
+- **Les `Config.Spots` etaient inatteignables sur tout serveur avec un target**, donc le materiel
+  integre a un MLO etait inutilisable.
+- **`ApplyPackage` laissait fuir des multiplicateurs**, et **la prise centree de l'outil d'alignement
+  n'a jamais fonctionne** - une lettre de difference entre ce qui etait ecrit et ce qui etait lu.
+- **`/vsportadd` ressuscitait les modeles retires par `/vsportremove`.**
+
+### Modifie
+
+- **Les poids libres se soulevent la ou on est.** Le corps ne se deplace plus et ne s'attache plus :
+  il se tourne vers l'haltere et le souleve sur place. Ca supprime l'`animOffset` des treize modeles,
+  et avec lui la donnee la plus fragile de la ressource. Les bancs et les racks continuent de
+  s'attacher, parce qu'y etre bien place *est* l'exercice.
+- **Le F8 d'un joueur n'est pas un fichier de log.** Cote client, `Sport.print` et `Sport.warn` ne
+  s'adressent plus qu'aux admins, ou a quiconque avec `Config.Debug.enabled`. La sortie serveur est
+  inchangee.
+- Trois champs de config declares, documentes et lus par rien ont ete retires plutot que laisses a
+  moitie vrais. `Config.Notifications.cooldownActive` est desormais lu.
+- Trois modeles `prop_muscle_bench` retires : deux bancs inclines et un portique de tractions, tous
+  nommes comme des bancs plats, aucun mesurable de facon fiable.
+
+### Ajoute
+
+- **Quatre assertions dans `tools/check.py`**, une par classe de defaut ci-dessus. La premiere a
+  attrape une seconde occurrence vivante de son propre bug des sa premiere execution.
+- **`/vsportprop <exercice> here`** aligne contre l'objet devant vous, sans filtre de modele, sans
+  recherche et sans copie studio.
 
 ---
 

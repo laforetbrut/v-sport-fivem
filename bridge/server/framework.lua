@@ -268,10 +268,21 @@ ADAPTERS.esx = {
     addCommand = function(object, name, help, args, restricted, handler)
         if type(object.RegisterCommand) ~= 'function' then return false end
 
-        -- ESX's signature is (name, group, cb, allowConsole, suggestion). Its callback gets
-        -- (xPlayer, args, showError) rather than (source, rawArgs), so it is adapted here
-        -- rather than leaking the difference to the caller.
-        return pcall(object.RegisterCommand, name, restricted and 'admin' or 'user',
+        --[[
+            ESX's signature is (name, group, cb, allowConsole, suggestion), and its callback gets
+            (xPlayer, args, showError) rather than (source, rawArgs). Adapted here rather than
+            leaking the difference to the caller.
+
+            TWO CORRECTIONS. `object.RegisterCommand` is a METHOD, so it needs `object` as its first
+            argument - called without it, ESX read the command name as its own self and registered
+            nothing, which is why /vsportadmin did not exist on ESX.
+
+            And `validate = false` with `arguments` set is contradictory: ESX validates when it is
+            given an argument list, and this resource does its own argument handling. The suggestion
+            carries the help text only.
+        ]]
+        return pcall(object.RegisterCommand, object, name,
+            restricted and 'admin' or 'user',
             function(xPlayer, commandArgs)
                 handler(xPlayer and xPlayer.source or 0, commandArgs)
             end, true, { help = help, validate = false, arguments = args or {} })
@@ -412,19 +423,44 @@ function Bridge.identifier(src)
     local object = Bridge.core()
     local player = object and adapter.player(object, src) or nil
 
-    if Config.Persistence.scope == 'license' or not player then
+    --[[
+        "NOT LOADED YET" HAS TO ANSWER NIL, and it did not, which silently turned the default
+        scope = 'character' into scope = 'license' on the one framework that has been tested.
+
+        The old condition was `scope == 'license' or not player`, and the branch below always
+        succeeds: GetPlayerIdentifiers works from the moment somebody connects. So a call made
+        before the character loaded returned a licence rather than nil - and the caller in
+        server/stats.lua retries for twenty seconds ON NIL ONLY, so it never retried. The profile
+        was created keyed on the licence, and the framework's own PlayerLoaded event, arriving
+        later with the real citizenid, was dropped by `if profiles[src] then return end`.
+
+        The trigger is routine rather than exotic: client/state.lua announces the player as soon as
+        the session has started and a ped exists, which on qb-core is true while the
+        multicharacter selector is still open - seconds before GetPlayer(src) returns anything. So
+        every join took the licence, and every character on an account shared one body.
+
+        Now the licence is only used when it is genuinely the answer: standalone (no core object),
+        or an operator who asked for licence scope. With a framework present and the character not
+        loaded, this returns nil, the retry loop does the waiting it was written for, and if it
+        gives up the framework's own load event triggers a fresh, correctly keyed load.
+    ]]
+    if Config.Persistence.scope == 'license' or not object then
         if player then
             local license = adapter.license(object, player)
             if license and license ~= '' then return license end
         end
 
-        -- Standalone, or a framework that has not loaded the character yet. The Rockstar
-        -- licence is the only identifier that is always available and always stable.
+        -- Standalone, or an operator who asked for account-wide progress. The Rockstar licence is
+        -- the only identifier that is always available and always stable.
         for _, identifier in ipairs(GetPlayerIdentifiers(src) or {}) do
             if identifier:sub(1, 8) == 'license:' then return identifier end
         end
         return nil
     end
+
+    -- A framework is present and has not finished loading this character. Answer nil so the caller
+    -- waits, rather than keying a row on something that is not the character.
+    if not player then return nil end
 
     local characterId = adapter.characterId(object, player)
     if characterId and characterId ~= '' then return characterId end
@@ -566,12 +602,22 @@ RegisterNetEvent('QBCore:Server:OnPlayerLoaded', function()
     announceLoaded(source)
 end)
 
--- ESX
-RegisterNetEvent('esx:playerLoaded', function(src)
-    announceLoaded(src or source)
+--[[
+    ESX. `source` ONLY - the argument is ignored.
+
+    This is a NET event, so a client can fire it, and it used to prefer the id in the payload: any
+    player could trigger a profile load for any other server id. Nothing catastrophic followed - the
+    load is idempotent and keyed on the target's own identifier - but it let one player make the
+    server do work on another's behalf, which is not a decision a client gets to make.
+
+    ESX fires this server-side with the source set correctly, so ignoring the argument costs nothing.
+]]
+RegisterNetEvent('esx:playerLoaded', function()
+    announceLoaded(source)
 end)
 
--- ox_core
+-- ox_core. AddEventHandler, not RegisterNetEvent: this one cannot be fired by a client, so its
+-- argument is the server's own and safe to prefer.
 AddEventHandler('ox:playerLoaded', function(src)
     announceLoaded(src or source)
 end)

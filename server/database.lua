@@ -240,8 +240,9 @@ end
 --- Load one character's row, or nil when there is none. Every JSON column is decoded
 --- defensively: a hand-edited row degrades to a default rather than to an error.
 function Database.load(identifier)
+    -- No database at all, or a bad identifier: not a failure to retry, just nothing to load.
     if not Database.available() or type(identifier) ~= 'string' or identifier == '' then
-        return nil
+        return nil, true
     end
 
     local rows = query(([[
@@ -250,7 +251,20 @@ function Database.load(identifier)
         FROM `%s` WHERE `identifier` = ? LIMIT 1
     ]]):format(TABLE), { identifier })
 
-    if type(rows) ~= 'table' or not rows[1] then return nil end
+    --[[
+        THREE OUTCOMES, NOT TWO. Returns `row, ok`.
+
+        A failed or timed-out query and a character with no row both used to answer plain nil, and
+        the caller read that as "new character" - so one slow query during a join installed a blank
+        profile, and the next autosave wrote those zeroes over a real saved row. A player could lose
+        everything to a database hiccup and nothing would say so.
+
+        Every supported driver returns an empty TABLE for zero rows, so nil genuinely does mean the
+        query did not answer. `ok = false` tells the caller to leave the profile alone.
+    ]]
+    if rows == nil then return nil, false end
+    if type(rows) ~= 'table' or not rows[1] then return nil, true end
+
     local row = rows[1]
 
     return {
@@ -261,7 +275,7 @@ function Database.load(identifier)
         lastSession = tonumber(row.last_session) or 0,
         totalSessions = tonumber(row.total_sessions) or 0,
         recoveryUntil = tonumber(row.recovery_until) or 0,
-    }
+    }, true
 end
 
 --[[

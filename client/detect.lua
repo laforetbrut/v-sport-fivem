@@ -297,7 +297,28 @@ end
     out to the side. Candidates outside `Config.Interaction.aimCone` are not eligible at all unless
     nothing is, in which case the nearest wins and the old behaviour is what you get.
 ]]
-function Detect.closestVisible()
+--[[
+    How far the nearest candidate is, squared, or math.huge.
+
+    Exists so the per-frame draw loop can gate itself on the DRAW budget rather than on the detection
+    radius. Those are 6 m and 20 m: the loop used to run at Wait(0) from the moment anything was
+    detected, so walking within 20 m of a bench started a per-frame thread that drew nothing for the
+    next 14 m of approach.
+]]
+function Detect.nearestSquared()
+    local nearest = math.huge
+    for index = 1, nearbyCount do
+        if nearby[index].distanceSquared < nearest then
+            nearest = nearby[index].distanceSquared
+        end
+    end
+    return nearest
+end
+
+--- `spotsOnly` restricts the answer to Config.Spots entries. A target resource owns every PROP, so
+--- with one installed the built-in prompt must only speak for coordinates, which a target cannot
+--- attach to - otherwise both offer the same bench and the player sees two prompts.
+function Detect.closestVisible(spotsOnly)
     local limit = math.min(
         tonumber(Config.Interaction.marker.distance) or 8.0,
         tonumber(Config.Performance.drawCutoff) or 15.0)
@@ -313,7 +334,9 @@ function Detect.closestVisible()
     for index = 1, nearbyCount do
         local candidate = nearby[index]
 
-        if candidate.distanceSquared <= limitSquared then
+        if candidate.distanceSquared <= limitSquared
+            and (not spotsOnly or candidate.spot ~= nil) then
+
             if candidate.distanceSquared < nearestDistance then
                 nearest, nearestDistance = candidate, candidate.distanceSquared
             end

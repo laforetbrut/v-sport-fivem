@@ -116,6 +116,7 @@ for key in keys:
 
     place = bool(e.placeAnim)
     prefer = bool(e.preferScenario)
+    in_place = bool(e.inPlace)
     props = seq(lua.eval(f"Equipment.catalogue['{key}'].props"))
 
     # Placement that has actually been set, rather than left at its default.
@@ -133,7 +134,9 @@ for key in keys:
 
     label = confirmed[0] + (f"  (+{len(confirmed) - 1} more)" if len(confirmed) > 1 else "")
 
-    if tuned_body or tuned_prop:
+    if in_place:
+        done.append((key, label, "in place"))
+    elif tuned_body or tuned_prop:
         marks = []
         if tuned_body:
             marks.append("body")
@@ -235,6 +238,23 @@ for key in keys:
         continue
 
     place = bool(e.placeAnim)
+
+    #[[
+    #   An `inPlace` exercise has NO per-model position: the player does not move and is not attached,
+    #   so there is nothing to measure against any of its models, and nothing that can be right on one
+    #   model and wrong on another. Listing them as work would be inventing work.
+    #
+    #   Counted as settled rather than skipped, so the total still reflects the whole catalogue. A
+    #   tracker whose denominator quietly shrinks is how work gets lost.
+    #]]
+    if e.inPlace:
+        print(f"\n{key}   (IN PLACE - no position to measure on any model)")
+        for model in confirmed:
+            pairs_total += 1
+            pairs_done += 1
+            print(f"  [x] {model:<26} in place")
+        continue
+
     reference = e.tunedAgainst
     overrides = lua.eval(f"Equipment.catalogue['{key}'].modelOverrides")
     covered = ({k for k, v in overrides.items() if places_the_body(v)}

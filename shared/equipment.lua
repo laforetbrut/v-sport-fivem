@@ -135,6 +135,13 @@
       require       Optional gate. { stats = { strength = 40 }, job = 'police',
                     item = 'gymmembership' }. An unmet requirement shows the reason.
 
+      inPlace       Do not move or attach the player: play the animation where they stand, turned
+                    to face the equipment. For anything you pick UP rather than get ON - a dumbbell,
+                    a barbell on the floor. Skips `offset`, `heading`, `snap`, `placeAnim` and
+                    `animOffset` entirely, which is the point: there is no position to measure and
+                    therefore none to get wrong. Never use it for a bench or a rack, where being in
+                    the right place IS the exercise.
+
       enabled       false keeps the entry as documentation without registering it.
 ]]
 
@@ -621,76 +628,34 @@ Equipment.catalogue = {
         scenario = 'WORLD_HUMAN_MUSCLE_FREE_WEIGHTS',
 
         --[[
-            THE REFERENCE IS THE BARE BAR, AND IT IS THE REFERENCE BECAUSE IT IS THE ORDINARY CASE.
+            IN PLACE: THE PLAYER DOES NOT MOVE, AND THERE IS NO OFFSET TO MEASURE.
 
-            A prop lying on the ground normally has its origin AT ground level, so the offset that
-            stands a body next to it is the same for all of them - 0.88, give or take the centimetre
-            of eyeballing. That is true of the bare bar, of both dumbbells and of anything else a
-            map drops on the floor. What breaks it is plates: a loaded barbell hangs its discs below
-            the bar's axis, so the bottom of its bounding box is below its origin and the offset
-            drops with the disc diameter.
+            You pick a dumbbell up. There is no correct place to stand to do that, so the body stays
+            where it is, turns to face the weight, and lifts. Everything this entry used to carry to
+            position the body - placeAnim, animOffset, animHeading, tunedAgainst, verifiedModels and
+            two per-model overrides - is gone, for all thirteen models at once.
 
-            So the reference is the case with nothing hanging below it. Every model that has never
-            been measured - the four barbell weights the sweep found nowhere, and whatever a custom
-            MLO adds tomorrow - inherits the behaviour that is right for a prop on the floor rather
-            than the extreme of the range. Choosing the most heavily loaded bar for this, which is
-            what the first version of this entry did, meant the safe default was the one value
-            guaranteed to be wrong for a plain object.
+            THAT DATA WAS THE MOST EXPENSIVE IN THE RESOURCE. `animOffset` is measured from the prop's
+            origin; how high that origin sits above the ground is decided by whoever placed the prop
+            on the map; and the alignment studio, which spawns its own copy, cannot know it. That one
+            fact produced a table of nine internally consistent and entirely wrong measurements, a
+            player's feet through the floor, and half a metre of error on a squat rack that was
+            "confirmed" twice against the same broken instrument.
 
-            The 47 cm step back is for the bar's LENGTH: 2.2 metres with the origin at the middle
-            puts the player standing on it otherwise. Dumbbells override it back to zero, having
-            nothing to step back from. The heading stays at zero throughout: a bar lying across the
-            player's front is already the right way round for a lift.
+            None of it is needed here. Deleting the data deletes the bug class rather than the bug.
+
+            The scenario stays as the fallback for a build where the dictionary will not stream; it
+            brings its own dumbbell, which beats empty hands.
         ]]
-        placeAnim = true,
-        animOffset = vector3(0.00, -0.47, 0.86),
-        animHeading = 0.0,
-        tunedAgainst = 'prop_barbell_01',
+        inPlace = true,
 
         --[[
-            Four bars checked in game and correct with nothing changed, so none gets an override.
+            The bar across both hands, the only placement this entry still has - and it is relative
+            to the HANDS, not to the world, so nothing about where the player stands can move it.
 
-            They were originally judged against the old 0.88, in the studio that had no ground - and
-            they stand anyway, because 0.88 falls inside the 0.84 to 0.88 band the re-measurement on
-            real tarmac produced. That is luck rather than method: they were the four the plate rule
-            happened not to move.
-        ]]
-        verifiedModels = {
-            'prop_barbell_10kg',
-            'prop_barbell_40kg',
-            'prop_barbell_50kg',
-            'prop_barbell_80kg',
-
-            --[[
-                And the rest of them, reviewed with /vsporttour on real ground with hideProp applied,
-                all correct on the shared 0.86.
-
-                This is the confirmation the collapsed plate table needed. Five of these carried
-                their own height before - 0.58 for the _02, 0.62, 0.61, 0.71, 0.74 for the plated
-                bars - and every one of those numbers is now known to have been measuring the
-                studio's bounding-box floor rather than the prop. One value serves all thirteen
-                models, which is what it should have been from the start: they all rest on the floor.
-            ]]
-            'prop_barbell_02',
-            'prop_curl_bar_01',
-            'prop_barbell_20kg',
-            'prop_barbell_30kg',
-            'prop_barbell_60kg',
-            'prop_barbell_100kg',
-        },
-
-        --[[
-            The bar across both hands. Measured three times over, and the settled answer is a fine
-            offset with NO rotation correction at all - the straighten key took the last stray
-            degree to zero, which is what it is for.
-
-            No rotation is the expected answer for a two-handed prop and worth stating: the bar's
-            orientation is DERIVED every frame from the two hand bones and the model's own long
-            axis, so there is nothing left for a hand-tuned angle to fix. Only the fine offset
-            along, across and up remains, and 7 cm forward and 4 cm up is the grip.
-
-            It is not per-model data either. Every model here drives the same clip and the hands
-            land in the same place, so this is one measurement refined, not one per weight.
+            No rotation correction: a two-handed prop's orientation is derived every frame from the
+            two hand bones and the model's own long axis, so there is nothing for a hand-tuned angle
+            to fix. Seven centimetres forward and four up is the grip.
         ]]
         props = {
             { model = 'prop_barbell_02', twoHanded = true,
@@ -698,46 +663,11 @@ Equipment.catalogue = {
         },
 
         --[[
-            ONE HEIGHT FOR EVERY BAR, AND THE TABLE THAT USED TO BE HERE DESCRIBED A BUG.
-
-            There was a careful nine-row table in this spot, ordering every barbell by how far its
-            discs hang below the origin: 0.74 for the 20 kg, 0.62 for the 100 kg, 0.58 for the
-            heaviest. It was consistent, it was physically plausible, and it was an artefact.
-
-            The measurements were taken in a studio floating over open water, where the tool had no
-            ground and had to derive its floor from GetModelDimensions - the model's BOUNDING BOX.
-            Bigger discs make a deeper bounding box, so the drawn floor sat lower, so the measured
-            offset came out lower. The "plate rule" was measuring the bug, and every one of those
-            numbers put the player's feet through the ground in the real world.
-
-            Re-measured on real tarmac, with the prop settled by PlaceObjectOnGroundProperly, every
-            bar lands between 0.84 and 0.88. Of course it does: they all rest on the same floor.
-            Four centimetres is below what the eye resolves on a standing body, so they share one
-            number and the per-bar overrides are gone.
-
-            THE LESSON, and it is expensive: a set of measurements that agree with each other and
-            with a plausible story can still all be wrong together, when they share an instrument.
-            The thing that caught it was not the numbers - it was a player saying their feet went
-            through the floor.
+            The curl bar HOLDS A CURL BAR. The one per-model difference left, and it is not a
+            position: a short bent EZ bar on the floor and a 2.2 metre Olympic bar in the hands is a
+            substitution nobody would miss.
         ]]
         modelOverrides = {
-            --[[
-                The two dumbbells, which are genuinely different: a 40 cm dumbbell is stood OVER
-                rather than stepped back from, and the body sits about 9 cm higher than at a bar.
-                Both re-measured on real ground.
-            ]]
-            ['prop_freeweight_01'] = {
-                animOffset = vector3(0.00, -0.29, 0.96),
-                animHeading = 0.0,
-            },
-            ['prop_freeweight_02'] = {
-                animOffset = vector3(0.00, -0.33, 0.93),
-                animHeading = 0.0,
-            },
-
-            -- The curl bar keeps a CURL BAR in the hands rather than the default Olympic bar - a
-            -- short bent EZ bar on the floor and a 2.2 metre bar in the hands is a substitution
-            -- nobody would miss. Its height is the shared one.
             ['prop_curl_bar_01'] = {
                 props = {
                     { model = 'prop_curl_bar_01', twoHanded = true,
@@ -746,8 +676,8 @@ Equipment.catalogue = {
             },
         },
 
-        -- `snap = false` because the body is attached to the weight. The offset below still
-        -- decides which side of it the prompt floats on.
+        -- `inPlace` ignores all three. They are kept only because `offset` still decides which side
+        -- of the weight the interaction prompt floats on.
         offset = vector3(0.0, 0.7, 0.0),
         heading = 180.0,
         snap = false,
@@ -1785,6 +1715,7 @@ function Equipment.staging(entry, modelHash)
         scenarioHeading = entry.scenarioHeading,
         props = entry.props,
         placeAnim = entry.placeAnim == true,
+        inPlace = entry.inPlace == true,
         animOffset = entry.animOffset,
         animHeading = entry.animHeading,
         animRot = entry.animRot,
@@ -1808,6 +1739,7 @@ function Equipment.staging(entry, modelHash)
     if override.scenarioHeading ~= nil then out.scenarioHeading = override.scenarioHeading end
     if override.props ~= nil then out.props = override.props end
     if override.placeAnim ~= nil then out.placeAnim = override.placeAnim == true end
+    if override.inPlace ~= nil then out.inPlace = override.inPlace == true end
     if override.animOffset ~= nil then out.animOffset = override.animOffset end
     if override.animHeading ~= nil then out.animHeading = override.animHeading end
     if override.animRot ~= nil then out.animRot = override.animRot end

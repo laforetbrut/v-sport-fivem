@@ -100,7 +100,7 @@ Locale.register('en', {
     ['notify.multiplier_applied']= 'Training %s: x%.2f for %s',
     ['notify.cooldown']         = 'You need to catch your breath. %s',
     ['notify.too_tired']        = 'You are too tired for this to do much',
-    ['notify.no_permission']    = 'You are not allowed to do that',
+    ['notify.no_permission']    = 'You are not allowed to do that. Admins: /vsportdev',
     ['notify.blocked']          = 'You cannot train right now',
     ['notify.requirement_stat'] = 'You need %s at %d%% for this',
     ['notify.requirement_job']  = 'This is not for you',

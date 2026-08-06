@@ -114,7 +114,9 @@ local function runDrawLoop()
         local cycleKey = Config.Interaction.cycleKey or 47
         local promptMode = Config.Interaction.prompt or 'help3d'
 
-        while Detect.count() > 0 do
+        -- Gated on the DRAW budget, not on the detection radius. Those are 6 m and 20 m, so this
+        -- used to run at Wait(0) for the whole 14 m of walking towards a bench, drawing nothing.
+        while Detect.nearestSquared() <= markerDistanceSquared do
             if not Session.active() then
                 -- --- Markers ---------------------------------------------------------
                 if Config.Interaction.marker.enabled then
@@ -130,7 +132,9 @@ local function runDrawLoop()
                 end
 
                 -- --- Prompt ----------------------------------------------------------
-                local closest = Detect.closestVisible()
+                -- With a target installed it owns every prop, so the built-in prompt speaks only
+                -- for static spots. Without one it speaks for everything.
+                local closest = Detect.closestVisible(Compat.usesTarget())
 
                 if closest then
                     local text = promptText(closest)
@@ -183,16 +187,33 @@ CreateThread(function()
     cycleKeyName = UI.keyLabel(Config.Interaction.cycleKey or 47, 'G')
 
     if Compat.usesTarget() then
-        -- The target resource owns the interaction; markers and prompts would duplicate it.
-        -- Markers are still drawn when the operator explicitly asked for them, because some
-        -- servers want the visual cue even with a target.
-        if not Config.Interaction.marker.enabled then return end
+        --[[
+            The target resource owns the interaction for PROPS - a prompt of our own would duplicate
+            it. Two things it cannot own, so the loop still has to run for them:
+
+              markers, when the operator explicitly asked for them
+              Config.Spots, which are COORDINATES and have no entity for a target to attach to
+
+            Spots were the bug. config.lua promises "Static spots keep the built-in key prompt even
+            on a server that uses ox_target or qb-target, because a target has nothing to attach
+            to" - and this return made that false on every target server, so any equipment baked
+            into an MLO was unreachable. The documentation was right about the design and the code
+            never implemented it.
+        ]]
+        if not Config.Interaction.marker.enabled and #(Config.Spots or {}) == 0 then return end
     end
+
+    local watchBudget = math.min(
+        tonumber(Config.Interaction.marker.distance) or 8.0,
+        tonumber(Config.Performance.drawCutoff) or 15.0)
+    local watchBudgetSquared = watchBudget * watchBudget
 
     local tick = math.max(50, tonumber(Config.Performance.nearbyTick) or 250)
 
     while true do
-        if Detect.count() > 0 and not drawLoopRunning then
+        -- Same budget as the loop's own condition, or the watcher would start a thread that
+        -- immediately exits and start it again on the next tick, forever.
+        if not drawLoopRunning and Detect.nearestSquared() <= watchBudgetSquared then
             runDrawLoop()
         end
         Wait(tick)

@@ -573,8 +573,18 @@ local function ApplyPackage(src, package)
     end
 
     for _, entry in ipairs(type(package.multipliers) == 'table' and package.multipliers or {}) do
-        local id = Profiles.addMultiplier(source_, entry.stat, entry.value, entry.seconds, entry.id)
-        if id then applied.multipliers[#applied.multipliers + 1] = id end
+        --[[
+            BOTH RETURNS. addMultiplier answers `id, ids`, and for an all-stat multiplier it
+            creates ONE PER STAT and returns the group in `ids`. Recording only `id` meant
+            ClearPackage removed one of three and left the other two running until they expired
+            on their own - so a drug's gain multiplier outlived the drug.
+        ]]
+        local id, ids = Profiles.addMultiplier(source_, entry.stat, entry.value, entry.seconds, entry.id)
+        if id then
+            for _, one in ipairs(ids or { id }) do
+                applied.multipliers[#applied.multipliers + 1] = one
+            end
+        end
     end
 
     for _, entry in ipairs(type(package.ceilings) == 'table' and package.ceilings or {}) do

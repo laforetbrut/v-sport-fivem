@@ -110,22 +110,52 @@ end
 function Compat.roles()
     local name, object = Compat.framework()
 
+    --[[
+        `jobType` IS PART OF THE ANSWER, and it was missing from every branch.
+
+        The server's own requirement check reads `roles.jobType`, so `require = { job = 'leo' }` -
+        a job TYPE rather than a job name - matched on the server and never on the client. The
+        client then refused the session with "this is not for you" before the server was ever asked,
+        which reads as the requirement being broken rather than as the client disagreeing.
+
+        And ox_core had no branch at all: it returned the empty fallback, so every job-gated piece of
+        equipment was closed to everybody on ox. ox uses GROUPS rather than jobs, so the highest
+        group stands in for the job, which is the same substitution the server-side adapter makes.
+    ]]
     if name == 'qb-core' or name == 'qbx_core' then
         local data = object and try(function() return object.Functions.GetPlayerData() end)
         if type(data) == 'table' then
             return {
                 job = (data.job and data.job.name) or '',
+                jobType = (data.job and data.job.type) or '',
                 gang = (data.gang and data.gang.name) or '',
             }
         end
     elseif name == 'es_extended' then
         local data = object and try(function() return object.GetPlayerData() end)
         if type(data) == 'table' then
-            return { job = (data.job and data.job.name) or '', gang = '' }
+            -- ESX has no job type. Its grade name is the nearest thing, and it is what the
+            -- server-side adapter uses, so the two sides agree.
+            return {
+                job = (data.job and data.job.name) or '',
+                jobType = (data.job and data.job.grade_name) or '',
+                gang = '',
+            }
+        end
+    elseif name == 'ox_core' then
+        local groups = object and try(function() return object.GetPlayerData().groups end)
+        if type(groups) == 'table' then
+            local best, bestGrade = '', -1
+            for group, grade in pairs(groups) do
+                if (tonumber(grade) or 0) > bestGrade then
+                    best, bestGrade = group, tonumber(grade) or 0
+                end
+            end
+            return { job = best, jobType = best, gang = '' }
         end
     end
 
-    return { job = '', gang = '' }
+    return { job = '', jobType = '', gang = '' }
 end
 
 -- ---------------------------------------------------------------------------------------
@@ -300,9 +330,18 @@ function Compat.notify(message, kind, durationMs)
         end) == true
 
     elseif provider == 'okokNotify' then
+        --[[
+            okokNotify's fourth argument is its OWN type vocabulary - 'info', 'success', 'error' -
+            and this resource's is 'primary', 'success', 'error'. Passing 'primary' straight through
+            gave it a type it does not know, so every informational notification fell back to
+            whatever its default styling is instead of reading as information.
+        ]]
         local titles = { primary = 'Info', success = 'Success', error = 'Error' }
+        local types = { primary = 'info', success = 'success', error = 'error' }
+
         delivered = try(function()
-            exports['okokNotify']:Alert(titles[kind] or 'Info', message, duration, kind)
+            exports['okokNotify']:Alert(titles[kind] or 'Info', message, duration,
+                types[kind] or 'info')
             return true
         end) == true
 
@@ -339,17 +378,22 @@ end
     interact-sound is used instead when the operator configured it AND the resource is
     running, for servers that route every cue through one place.
 ]]
-function Compat.playSound(name, set, volume)
+--[[
+    THE FRONTEND NATIVE, ALWAYS. The interact-sound route is gone, and it was silencing the resource.
+
+    Every cue in Config.Minigame.sounds is a GTA FRONTEND sound with a soundset -
+    `CHECKPOINT_PERFECT` in `HUD_MINI_GAME_SOUNDSET`. interact-sound plays FILES shipped inside its
+    own resource, and its event does not even take a soundset. So passing a frontend name to it
+    played nothing at all - and because the routing returned as soon as the event fired without
+    error, PlaySoundFrontend was never reached.
+
+    The result was total silence for the whole minigame on any server with interact-sound installed,
+    which is most of them, presented as a feature: "for servers that route every cue through one
+    place". Routing is a reasonable idea and these are not the sounds to route.
+]]
+function Compat.playSound(name, set)
     if not Config.Minigame.sounds.enabled then return end
     if type(name) ~= 'string' or name == '' then return end
-
-    local resource = Config.Compat.soundResource
-    if resource and resource ~= '' and started(resource) then
-        if try(function()
-            TriggerEvent('InteractSound_CL:PlayOnOne', name, volume or 0.4)
-            return true
-        end) then return end
-    end
 
     PlaySoundFrontend(-1, name, set or '', true)
 end

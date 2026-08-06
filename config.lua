@@ -104,9 +104,20 @@ Config.Compat = {
     -- Off draws the resource's own native bar instead, which matches the rest of the HUD.
     useOxProgress = false,
 
-    -- interact-sound, for the rep and the session-complete cues. Silently skipped when the
-    -- resource is not started.
-    soundResource = 'interact-sound',
+    --[[
+        `soundResource` USED TO BE HERE AND IS GONE, because it silenced the resource rather than
+        routing it.
+
+        The idea was to send the rep and completion cues through interact-sound for servers that
+        route all audio through one place. It cannot work for these cues: they are GTA FRONTEND
+        sounds with a soundset, and interact-sound plays files from its own resource and takes no
+        soundset. So the cues vanished, and because the routing counted a fired event as success the
+        native fallback was never reached. Any server with interact-sound installed had a silent
+        minigame.
+
+        Sounds now always go through PlaySoundFrontend. If you want them routed, the place to do it
+        is Config.Minigame.sounds - name your own cues there and change one function.
+    ]]
 }
 
 -- ===========================================================================================
@@ -825,9 +836,14 @@ Config.Detection = {
     ]]
     maxObjects = 60,
 
-    -- Also match on the model of the prop a player is holding or attached to. Off by
-    -- default: it is only useful for hand-held equipment like a skipping rope.
-    matchAttached = false,
+    --[[
+        `matchAttached` USED TO BE HERE and was read by nothing.
+
+        It described matching on the model of a prop the player is holding, which sounds useful for a
+        skipping rope and was never implemented. Detection walks GetGamePool('CObject') and matches
+        world objects; nothing anywhere looked at what was in a hand. A commented behaviour with no
+        code behind it is a claim, and this file's comments are its documentation.
+    ]]
 }
 
 -- ===========================================================================================
@@ -1225,7 +1241,16 @@ Config.UI = {
         showExerciseName = true,
         showRepCounter = true,
         showQualityBar = true,
-        showStatGains = true,       -- the live "+0.42 STR" readout
+        --[[
+            `showStatGains` USED TO BE HERE. It promised a live "+0.42 STR" readout during a workout,
+            and there is nothing to draw it from: the client is never told what a session is worth,
+            because the SERVER derives the payout from the player's stored state, their fatigue and
+            their allowance, and only answers once the session is over. Showing a running total would
+            mean either duplicating that maths on the client or having the client guess - and the
+            first is the drift this resource avoids everywhere else.
+
+            The finished total is shown when the session pays out, which is the honest moment for it.
+        ]]
         showJudgement = true,       -- the PERFECT / GOOD / MISS flash
         judgementMs = 550,
     },
@@ -1622,7 +1647,12 @@ Config.Commands = {
 Config.Security = {
     -- The server issues a token when a session starts and will not accept a result without
     -- one. This stops a client simply firing the "I finished" event in a loop. Leave it on.
-    requireToken = true,
+    --[[
+        `requireToken` USED TO BE HERE and was read by nothing, so "leave it on" described something
+        that was never a choice: a session with no valid token has always been refused, and there is
+        no code path that would honour false. Offering a switch that cannot move is worse than not
+        offering one - somebody sets it, believes they changed something, and reasons from that.
+    ]]
 
     -- Reject a result that arrives faster than the reps could physically have taken. The
     -- expected floor is `reps x (window x minKeys + restBetween)`, times this factor. 0.75
@@ -1729,7 +1759,12 @@ Config.Performance = {
     -- --- Server --------------------------------------------------------------------
     -- How often the dirty-row flush runs, in seconds. Rows are batched into one transaction,
     -- so this is one query per flush and not one per player.
-    flushInterval = 30,
+    --[[
+        `flushInterval` USED TO BE HERE. The save cadence is Config.Persistence.saveInterval, which
+        is where the documentation always said it was and which nothing read until 1.0.1: this field
+        was in force at 30 while the documented one sat at 60 with no effect. One behaviour, one
+        setting, and it lives with the rest of persistence.
+    ]]
 
     -- Rows written in a single batch. A server with 200 players all training at once still
     -- writes in chunks rather than building one enormous statement.

@@ -163,7 +163,30 @@ end
 
 local PREFIX = '^5[v-sport]^7 '
 
+--[[
+    WHO IS ALLOWED TO SEE THE CONSOLE, and why this is a hook rather than a check.
+
+    A player's F8 is not a log file. Diagnostics like "the prop model would not load", "the scenario
+    would not start" or "no stats received after 10 attempts" are written for whoever runs the server,
+    and printing them to every player is noise they cannot act on and did not ask for.
+
+    On the SERVER this never applies: the server console belongs to the operator, so everything prints.
+
+    On the CLIENT, client/state.lua assigns this once the server has told it whether the player is an
+    admin. It is a hook rather than a direct check because this file is shared and loads first - it
+    cannot know about State, and hard-coding a dependency on it would make the shared core depend on
+    the client. Left nil, everything prints, which is the safe default for a file that may be running
+    before anything has had a chance to set it.
+]]
+Sport.consoleAllowed = nil
+
+local function mayPrint()
+    if Sport.consoleAllowed == nil then return true end
+    return Sport.consoleAllowed() == true
+end
+
 function Sport.print(...)
+    if not mayPrint() then return end
     local parts = {}
     for index = 1, select('#', ...) do
         parts[#parts + 1] = tostring((select(index, ...)))
@@ -172,6 +195,7 @@ function Sport.print(...)
 end
 
 function Sport.warn(...)
+    if not mayPrint() then return end
     local parts = {}
     for index = 1, select('#', ...) do
         parts[#parts + 1] = tostring((select(index, ...)))

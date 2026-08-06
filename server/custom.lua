@@ -211,15 +211,22 @@ RegisterNetEvent('vsport:server:CustomAdd', function(key, model)
 
     local entry = entryFor(key)
 
-    -- Start from the shipped list so the addition is additive, then dedupe.
+    --[[
+        SEED FROM WHAT IS STORED, NOT FROM WHAT SHIPS, once anything has been stored.
+
+        Merging the shipped list in on every add UNDID every removal: /vsportremove wrote a shorter
+        list, and the next /vsportadd on the same exercise rebuilt it from the shipped models and
+        brought the removed one back. Two commands, opposite intents, and the second silently won.
+
+        A stored list is the operator's current answer for this exercise. Shipped models are only the
+        starting point for an entry nobody has touched yet.
+    ]]
+    local base = (type(entry.models) == 'table' and #entry.models > 0)
+        and entry.models
+        or (shipped.models or {})
+
     local models, seen = {}, {}
-    for _, name in ipairs(shipped.models or {}) do
-        if type(name) == 'string' and not seen[name] then
-            seen[name] = true
-            models[#models + 1] = name
-        end
-    end
-    for _, name in ipairs(entry.models or {}) do
+    for _, name in ipairs(base) do
         if type(name) == 'string' and not seen[name] then
             seen[name] = true
             models[#models + 1] = name

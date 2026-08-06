@@ -173,8 +173,14 @@ local function refusal(entry)
         end
     end
 
+    -- Config.Notifications.cooldownActive decides whether this one speaks. It was declared as a
+    -- switch and read by nothing, so turning it off did nothing; the message was gated by
+    -- requirementFailed along with every other refusal.
     local left = State.cooldownLeft(entry.key)
-    if left > 0 then return L('notify.cooldown', Sport.duration(left)) end
+    if left > 0 then
+        if Config.Notifications.cooldownActive == false then return '' end
+        return L('notify.cooldown', Sport.duration(left))
+    end
 
     -- Requirements. The server checks these again; here they buy a useful message.
     local require_ = entry.require
@@ -190,7 +196,12 @@ local function refusal(entry)
 
         if type(require_.job) == 'string' and require_.job ~= '' then
             local roles = Compat.roles()
-            if roles.job ~= require_.job and ('gang:' .. roles.gang) ~= require_.job then
+            -- `jobType` too, matching the server's own check. Without it a require written
+            -- against a job TYPE passed on the server and was refused here, so the player was
+            -- told "this is not for you" about equipment they were entitled to use.
+            if roles.job ~= require_.job
+                and roles.jobType ~= require_.job
+                and ('gang:' .. roles.gang) ~= require_.job then
                 return L('notify.requirement_job')
             end
         end
@@ -845,6 +856,50 @@ local function startAnimation(staging, entity)
         The reason it looked broken for so long was `timeToLeave = 0`, which ended the scenario on
         the frame it began. That is fixed; the scenario is worth preferring again.
     ]]
+    --[[
+        IN PLACE: DO NOT MOVE THE PLAYER, DO NOT ATTACH THEM. Just play the animation where they are.
+
+        For equipment you pick UP rather than get ON - a dumbbell, a barbell lying on the sand - there
+        is no correct place to stand. You lift it where you are. Attaching the body to the prop at a
+        measured offset was solving a problem that does not exist, and it was the most expensive
+        pretend problem in this resource: `animOffset` is measured from the prop's origin, how high
+        that origin sits above the ground is decided by whoever placed the prop, and a studio copy
+        cannot know it. That produced feet through the floor, a table of nine plausible and entirely
+        wrong measurements, and half a metre of error on a squat rack.
+
+        `inPlace` deletes the whole class. No offset means no offset to get wrong, for every model the
+        exercise lists at once.
+
+        What still happens: the world prop is hidden by `hideProp`, our own barbell goes into the
+        hands from `props`, and the prop comes back at the end. The player is turned to FACE the
+        equipment without being moved, so it does not vanish behind them - the one case where standing
+        still would read badly.
+
+        Not for a bench or a rack. Lying on a bench and stepping into a squat rack are exactly the
+        cases where position is the whole point, and those keep attaching.
+    ]]
+    if staging.inPlace and type(staging.anim) == 'table' then
+        local dict = resolveDict(staging.anim.dict)
+
+        if dict then
+            if entity and DoesEntityExist(entity) then
+                local at = GetEntityCoords(entity)
+                TaskTurnPedToFaceCoord(ped, at.x, at.y, at.z, 800)
+                Wait(300)
+            end
+
+            staging.loadedDict = dict
+            TaskPlayAnim(ped, dict, staging.anim.clip,
+                8.0, -8.0, -1, tonumber(staging.anim.flag) or 1, 0.0,
+                false, false, false)
+
+            -- 'placed' rather than 'anim', because the caller uses that to decide two things this
+            -- path needs: attach the held props (a scenario would bring its own), and watch the
+            -- animation, since TaskPlayAnim can be cancelled by the engine and a scenario cannot.
+            return before, 'placed'
+        end
+    end
+
     if staging.preferScenario and type(staging.scenario) == 'string' and staging.scenario ~= '' then
         local before2, mode = startScenario(staging, entity, before)
         if mode then return before2, mode end
@@ -958,7 +1013,7 @@ end
     session, and the order matters: detach, restore collision, then put them on the ground.
     Skipping the ground step leaves them standing inside the bench they were lying on.
 ]]
-local function detachPed()
+local function detachPed(restoreTo)
     local ped = PlayerPedId()
     if not IsEntityAttached(ped) then return end
 
@@ -966,15 +1021,30 @@ local function detachPed()
     SetEntityCollision(ped, true, true)
     FreezeEntityPosition(ped, false)
 
-    -- Step off the equipment rather than out of it.
-    local coords = GetEntityCoords(ped)
-    local found, groundZ = GetGroundZFor_3dCoord(coords.x, coords.y, coords.z + 2.0, false)
-    if found then
-        SetEntityCoords(ped, coords.x, coords.y, groundZ + 1.0, false, false, false, false)
-    end
+    --[[
+        BACK WHERE THEY STOOD, ON THE GROUND. Two bugs lived in the line this replaces:
+
+            SetEntityCoords(ped, coords.x, coords.y, groundZ + 1.0, ...)
+
+        `groundZ + 1.0` put the player a METRE IN THE AIR and let them fall. A ped's coordinates are
+        its feet, so groundZ is the ground; the +1 is a reflex borrowed from spawn code, where the
+        clearance exists because the trace may be stale. Reported as "when I stop, it teleports me up
+        a bit". The same mistake was fixed in the alignment tool hours earlier and not looked for
+        here.
+
+        And `coords` was the ped's CURRENT position - which, still attached to a bench, is the
+        bench's. So the player was put down inside the equipment rather than beside it.
+
+        `restoreTo` is where they were standing before the attach. The ground is re-traced there,
+        because a bench on a slope is not at the height of the ground beside it.
+    ]]
+    local at = restoreTo or GetEntityCoords(ped)
+    local found, groundZ = GetGroundZFor_3dCoord(at.x, at.y, at.z + 2.0, false)
+
+    SetEntityCoords(ped, at.x, at.y, found and groundZ or at.z, false, false, false, false)
 end
 
-local function stopAnimation(staging, before, keep, sweep)
+local function stopAnimation(staging, before, keep, sweep, restoreTo)
     local ped = PlayerPedId()
 
     --[[
@@ -1009,7 +1079,7 @@ local function stopAnimation(staging, before, keep, sweep)
 
     -- After clearing the tasks: detaching first would drop the ped while the lying animation is
     -- still driving the skeleton, which reads as a fall rather than as standing up.
-    detachPed()
+    detachPed(restoreTo)
 
     for _, object in ipairs(spawned) do
         deleteObject(object)
@@ -1042,7 +1112,7 @@ local function cleanUp(session)
     -- Then the scenario's, by diffing what is attached against what was - and only when a
     -- scenario actually ran. The equipment itself is passed in so it can never be swept up.
     stopAnimation(session.staging or {}, session.attachedBefore,
-        session.entity, session.mode == 'scenario')
+        session.entity, session.mode == 'scenario', session.standingAt)
 
     -- Put the world prop back.
     if session.propHidden and session.entity and DoesEntityExist(session.entity) then
@@ -1237,6 +1307,15 @@ function Session.start(candidate, key)
             SetEntityVisible(entity, false, false)
             current.propHidden = true
         end
+
+        --[[
+            WHERE THEY ARE STANDING, CAPTURED BEFORE ANYTHING MOVES THEM.
+
+            Read here rather than at the start of the session, because the walk to the mark has
+            already happened: this is the spot the player will expect to be returned to, not
+            wherever they were when they pressed the key. cleanUp hands it to detachPed.
+        ]]
+        current.standingAt = GetEntityCoords(ped)
 
         local before, mode = startAnimation(staging, entity)
         current.attachedBefore = before

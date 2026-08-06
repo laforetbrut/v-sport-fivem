@@ -350,6 +350,72 @@ elif seen_dev != set(DEV_COMMANDS):
 else:
     print(f"  dev commands: {len(seen_dev)} found, all gated by State.devGate()  OK")
 
+# --- the framework object must never be indexed raw --------------------------------------
+#
+# ox_core's core object IS its exports table, and in FiveM indexing an export that does not exist
+# RAISES rather than returning nil. `field(object, name)` exists for exactly that, and server/items.lua
+# forgot: `core.Functions` threw on ox_core and killed the whole item-registration loop. The file that
+# defines `field` documented the hazard, which is what makes a second place getting it wrong worth an
+# assertion rather than a comment.
+raw_core = []
+for path in list((ROOT / "server").glob("*.lua")) + list((ROOT / "bridge" / "server").glob("*.lua")):
+    code = strip_comments(path.read_text(encoding="utf-8"))
+    for num, line in enumerate(code.splitlines(), 1):
+        if re.search(r"\bcore\.[A-Z]\w*", line) and "pcall" not in line and "field(" not in line:
+            raw_core.append(f"{path.name}:{num}")
+
+if raw_core:
+    fail("BRIDGE the framework object is indexed raw at " + ", ".join(raw_core)
+         + " - use field(object, name) or a pcall; ox_core's core object RAISES on a missing key")
+else:
+    print("  core object: never indexed raw  OK")
+
+# --- a player's F8 is not a log file -----------------------------------------------------
+#
+# Sport.print and Sport.warn are gated on the client by Sport.consoleAllowed, so diagnostics reach
+# admins and not players. A raw print() bypasses that gate. Allowed only in the files that ARE the
+# developer commands, where the output is the command's answer to whoever ran it.
+DEV_OUTPUT_FILES = {"commands.lua", "tune.lua", "custom.lua"}
+
+leaks = []
+for path in (ROOT / "client").glob("*.lua"):
+    if path.name in DEV_OUTPUT_FILES:
+        continue
+    code = strip_comments(path.read_text(encoding="utf-8"))
+    for num, line in enumerate(code.splitlines(), 1):
+        if re.search(r"(?<!Sport\.)(?<!\w)print\(", line):
+            leaks.append(f"{path.name}:{num}")
+
+if leaks:
+    fail("CONSOLE raw print() on a gameplay client path at " + ", ".join(leaks)
+         + " - use Sport.warn/Sport.debug so it does not reach every player's F8")
+else:
+    print("  client console: every gameplay line goes through Sport  OK")
+
+# --- every roles() answer must carry the same keys ---------------------------------------
+#
+# The server's requirement check reads roles.jobType. It was missing from every client branch and
+# from the ox adapter entirely, so `require = { job = 'leo' }` passed the server and was refused by
+# the client, and job-gated equipment was closed to everyone on ox_core.
+roles_sources = {
+    "bridge/server/framework.lua": r"roles = function.*?end,",
+    "bridge/client/compat.lua": r"function Compat\.roles\(\).*?\nend",
+}
+missing_jobtype = []
+for rel, pattern in roles_sources.items():
+    src = (ROOT / rel).read_text(encoding="utf-8")
+    for block in re.findall(pattern, src, re.S):
+        # Every `return {` inside a roles implementation must mention jobType.
+        for ret in re.findall(r"return \{[^}]*\}", block, re.S):
+            if "job" in ret and "jobType" not in ret:
+                missing_jobtype.append(f"{rel}: {' '.join(ret.split())[:70]}")
+
+if missing_jobtype:
+    fail("BRIDGE a roles() result omits jobType, which the requirement check reads: "
+         + "; ".join(missing_jobtype))
+else:
+    print("  roles(): every answer carries jobType  OK")
+
 # --- every framework adapter must implement every method the bridge calls ---------------
 #
 # The bridge resolves ONE adapter at boot and then calls methods on it blindly. A method the

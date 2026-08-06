@@ -1118,7 +1118,27 @@ local function load(src)
         if profiles[src] then return end                   -- a second load event won the race
 
         local profile = blankProfile(identifier)
-        local row = Database.load(identifier)
+        local row, ok = Database.load(identifier)
+
+        --[[
+            A FAILED QUERY IS NOT A NEW CHARACTER, and treating it as one could destroy a save.
+
+            Database.load used to answer plain nil for both "this character has no row yet" and "the
+            query failed or timed out". This branch then installed a BLANK profile, and the next
+            autosave wrote those zeroes over a real row. A single database hiccup during a join could
+            cost a player everything they had trained, with nothing in the console saying so.
+
+            It now answers `row, ok`. On ok == false, refuse to install anything: the player trains
+            with no profile for this session, which the resource already handles as the degraded state
+            for "no identifier" just above, and their saved row is untouched.
+        ]]
+        if ok == false then
+            Sport.warn(('the database did not answer for %s; their stats are NOT loaded and will '
+                .. 'NOT be saved this session, so nothing can be overwritten. Check the database.')
+                :format(GetPlayerName(src) or src))
+            loading[src] = nil
+            return
+        end
 
         if row then
             profile.stats = Stats.sanitise(row.stats)
@@ -1175,7 +1195,13 @@ end)
 
 --- Flush dirty rows, in batches. One timer for the whole server.
 CreateThread(function()
-    local interval = math.max(5, tonumber(Config.Performance.flushInterval) or 30) * 1000
+    --[[
+        Config.Persistence.saveInterval, which is the field the documentation promises drives this and
+        which nothing read. The cadence came from Config.Performance.flushInterval instead - two
+        settings for one behaviour, 60 documented and 30 in force, and the one an operator would
+        reasonably change had no effect at all.
+    ]]
+    local interval = math.max(5, tonumber(Config.Persistence.saveInterval) or 60) * 1000
     local batchSize = math.max(1, math.floor(tonumber(Config.Performance.flushBatchSize) or 50))
 
     while true do

@@ -1461,9 +1461,12 @@ local function placementOf(state)
         if hold == 'twoHanded' then
             spec.twoHanded = true
         elseif hold == 'centred' then
-            -- The flag, not the corrected numbers: `centre` is computed from the model at
-            -- runtime, so storing the offset too would apply it twice.
-            spec.centred = true
+            -- `centre`, not `centred`. The runtime reads `centre` and nothing has ever read
+            -- `centred`, so every alignment saved in the centred hold silently lost its centring and
+            -- came back attached by the model's origin instead of its middle - a long bar through the
+            -- wrist. One letter, invisible in every review, and a saved file cannot depend on the old
+            -- name because nothing consumed it.
+            spec.centre = true
             spec.bone = BONES[state.boneIndex].id
         else
             spec.bone = BONES[state.boneIndex].id

@@ -188,8 +188,20 @@ local function registerQb(key, entry)
     local core = Bridge.core()
     if not core then return false end
 
-    local functions = core.Functions
-    if not functions or not functions.CreateUseableItem then return false end
+    --[[
+        INDEXED BEHIND A pcall, because `core` is not always a plain table.
+
+        On ox_core, Bridge.core() is an exports object, and indexing an exports object with a key it
+        does not have RAISES rather than returning nil. So `core.Functions` threw, the error escaped
+        the registration loop, and every item after this one in the loop was never registered -
+        including on frameworks where a later registrar would have worked.
+
+        A probe for "does this core have qb-core's shape" has to be able to answer no.
+    ]]
+    local ok, functions = pcall(function() return core.Functions end)
+    if not ok or type(functions) ~= 'table' or not functions.CreateUseableItem then
+        return false
+    end
 
     local ok = pcall(functions.CreateUseableItem, entry.item, function(source_)
         if Items.use(source_, key) and entry.consume ~= false then
@@ -206,9 +218,16 @@ end
 
 local function registerEsx(key, entry)
     local core = Bridge.core()
-    if not core or type(core.RegisterUsableItem) ~= 'function' then return false end
+    if not core then return false end
 
-    return pcall(core.RegisterUsableItem, entry.item, function(source_)
+    -- Behind a pcall for the same reason as registerQb above: on ox_core the core object is an
+    -- exports table and reading a key it does not have RAISES. This one was found by the check
+    -- script's new guard rather than by anybody reading the file - the same mistake twice, ten
+    -- lines apart, with the reason written between them.
+    local ok, register = pcall(function() return core.RegisterUsableItem end)
+    if not ok or type(register) ~= 'function' then return false end
+
+    return pcall(register, entry.item, function(source_)
         if Items.use(source_, key) and entry.consume ~= false then
             local player = Bridge.player(source_)
             if player and player.removeInventoryItem then
@@ -408,7 +427,9 @@ local function printItems(target, which)
         -- ON TOP of qb-core, in which case ox owns the item list.
         if GetResourceState('ox_inventory') == 'started' then
             which = 'ox_inventory'
-        elseif Bridge.framework():find('esx') then
+        -- Bridge.framework() answers the RESOURCE name, which for ESX is 'es_extended' - so a
+        -- search for 'esx' never matched and an ESX server was handed the qb-core block.
+        elseif Bridge.framework():find('es_extended') or Bridge.framework():find('esx') then
             which = 'esx'
         else
             which = 'qb-core'

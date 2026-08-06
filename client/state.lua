@@ -59,15 +59,47 @@ State.devAllowed = false
 function State.devGate()
     if State.devAllowed then return true end
 
+    --[[
+        The on-screen refusal is for the player; the console line is for whoever is meant to be able
+        to run this. Through Sport.warn rather than print, so an ordinary player who mistypes a
+        command does not get a config field name and a resource internal in their F8 - they get the
+        notification, which is the part that concerns them.
+
+        An admin whose answer has not arrived yet sees neither, because the gate that silences the
+        console is the same one that refused them. The notification names /vsportdev for exactly that
+        case.
+    ]]
     Compat.notify(L('notify.no_permission'), 'error')
-    print('^3[v-sport] the developer commands are restricted to admins '
-        .. '(Config.Commands.restrictDevCommands).^7')
+    Sport.warn('the developer commands are restricted to admins '
+        .. '(Config.Commands.restrictDevCommands). /'
+        .. (Config.Commands.dev or 'vsportdev') .. ' re-asks the server.')
     return false
 end
 
 RegisterNetEvent('vsport:client:DevAccess', function(allowed)
     State.devAllowed = allowed == true
 end)
+
+--[[
+    THE PLAYER'S F8 IS NOT A LOG FILE.
+
+    Sport.warn printed for everybody, so an ordinary player saw diagnostics written for whoever runs
+    the server: "the prop model would not load", "the scenario would not start; falling back to the
+    animation", "no stats received from the server after 10 attempts". None of it is actionable by
+    them, and it reads as a broken resource.
+
+    So client console output is for admins, or for anybody when Config.Debug.enabled is on. Server
+    output is untouched: that console belongs to the operator.
+
+    Assigned here rather than checked inside sport.lua because that file is shared and loads first -
+    it must not depend on State. Until the server answers, State.devAllowed is false, which means the
+    first seconds of a session are quiet for everyone including admins. That is the right way round:
+    a missed warning costs a re-run of /vsportdev, and the alternative leaks to every player.
+]]
+Sport.consoleAllowed = function()
+    if Config and Config.Debug and Config.Debug.enabled then return true end
+    return State.devAllowed == true
+end
 
 --- What the allowance still permits, globally and per stat. Both are `math.huge` when that
 --- part of the allowance is switched off in the config.

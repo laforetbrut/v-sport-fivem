@@ -209,7 +209,7 @@ resource first.
 ## Finding the sport props on your own map
 
 The shipped catalogue in `shared/equipment.lua` covers the base-game sport props and a spread
-of names used by common gym MLOs - 20 exercises across 94 model names. **It cannot know what
+of names used by common gym MLOs - 18 exercises across 31 verified model names. **It cannot know what
 your map has.** No shipped list can.
 
 So: stand in your gym and run
@@ -367,7 +367,7 @@ Config.Passive.swimming = {
 
 ### The equipment has to stay better, and three mechanisms make sure of it
 
-**The rates are low.** A dedicated gym player earns about 23 points a day. `dailyCapTotal` holds
+**The rates are low.** A dedicated gym player earns about 18.75 points a day. `dailyCapTotal` holds
 every passive activity combined to 2.0, so the best possible day of swimming and cycling is 9% of
 a day in the gym. The check script asserts that ratio stays under 50% and fails the build if a
 config change breaks it.
@@ -880,8 +880,8 @@ Config.Passive.swimming = {
 
 ### Trois mecanismes garantissent que l'equipement reste meilleur
 
-**Les taux sont faibles.** Un joueur assidu en salle gagne environ 23 points par jour ;
-`dailyCapTotal` plafonne tout le passif cumule a 2.0, soit 9 % d'une journee de salle. Le script
+**Les taux sont faibles.** Un joueur assidu en salle gagne environ 18,75 points par jour ;
+`dailyCapTotal` plafonne tout le passif cumule a 2.0, soit 11 % d'une journee de salle. Le script
 de verification impose ce rapport sous 50 % et echoue si une modification de config le casse.
 
 **Un plafond par activite.** `ceiling` empeche une activite de depasser une valeur, net et sans

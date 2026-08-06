@@ -34,7 +34,7 @@ when nobody is training.
   than a refusal.
 - **Decay** - 5 points a day of absence, after one free day, computed from a timestamp so it
   runs while the player is offline. Per-stat rates, a floor, and optional peak protection.
-- **Passive training** - running, cycling, swimming and diving all pay out, capped at 9% of a
+- **Passive training** - running, cycling, swimming and diving all pay out, capped at 11% of a
   dedicated gym day and stopped partway up each stat, so they never replace the equipment.
 - **Built to be driven from outside** - seventy-two exports so a drug script can boost gains, apply
   debuffs, drain stamina, stop decay, refund the recovery timer or bypass it entirely. That
@@ -141,12 +141,13 @@ the decay rules in play. **All three stats to 100%:**
 | Casual, one rest day in three | 9 | 85% | ~59 |
 | Dedicated, one rest day a week | 18 | 90% | ~22 |
 | Dedicated, every day | 21 | 90% | ~16 |
-| **Dedicated, every day, plays the QTE well** | **21** | **100%** | **~13** |
-| Does nothing else | 60 | 100% | ~5 |
+| **Dedicated, every day, plays the QTE well** | **21** | **100%** | **~16** |
+| Tries to grind it | 60 requested, 28 fit | 100% | ~15 |
 
-So **a fortnight** is the target for somebody who trains daily and hits their prompts, and
-playing the minigame well is worth about three days of it. One stat on its own is roughly a
-third of those figures.
+So **a fortnight** is the target for somebody who trains daily and hits their prompts. The last
+row is the one that matters most: **grinding buys one day**, because the allowance stops paying long
+before the day runs out and only about 28 sessions fit into 24 hours at a realistic pace. One stat on
+its own is roughly a third of those figures.
 
 The last row is what grinding actually buys: **one day.** A player attempting sixty sessions a day
 measures at fifteen days against the dedicated player's sixteen, because the 24-point allowance
@@ -167,12 +168,12 @@ Everything is in `config.lua`, in nineteen commented sections. The four numbers 
 
 ```lua
 -- How many DAYS a maxed character takes. This is the big one.
-Config.Allowance.total   = 50.0          -- points per cycle, across all stats
-Config.Allowance.perStat = 25.0          -- ...and into any single stat
+Config.Allowance.total   = 24.0          -- points per cycle, across all stats
+Config.Allowance.perStat = 12.0          -- ...and into any single stat
 Config.Allowance.window  = 25 * 3600     -- how long a spent allowance takes to come back
 
 -- How hard it is to keep. -5 a day of absence, after one free day.
-Config.Decay.amount = 10.0
+Config.Decay.amount = 5.0
 Config.Decay.grace  = 24 * 3600
 
 -- How much of an advantage a maxed character actually gets.
@@ -221,7 +222,9 @@ cigarette; it does not model a smoker. What models a smoker is being held back f
 they smoke - which is what the three condition exports above are for. None of them touches a
 stat at the moment it is applied, so they read as a consequence rather than as a fine.
 
-Sixty exports, every one with an event twin, plus state bags and the events this resource fires.
+Seventy-two exports, plus state bags and the events this resource fires. Everything in
+`server/api.lua` also answers to `vsport:server:<Name>` as an event, for a resource that would
+rather not depend on load order.
 All of it, with complete worked examples for smoking, drug abuse and a x2 booster with a
 comedown, is in [API.md](API.md).
 
@@ -442,7 +445,7 @@ tant qu'il fume, et c'est à ça que servent les trois exports de condition ci-d
 touche une statistique au moment où il est posé : ils se lisent comme une conséquence, pas comme
 une amende.
 
-Soixante exports, chacun avec un équivalent en événement, plus les state bags et les événements
+Soixante-douze exports, plus les state bags et les événements
 émis. Tout, avec des exemples complets pour la fumette, l'abus de drogue et un booster x2 avec sa
 descente, est dans [API.md](API.md).
 
