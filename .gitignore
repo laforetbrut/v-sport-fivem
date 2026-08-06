@@ -1,0 +1,20 @@
+# Assistant and QA artefacts. Local only, never committed.
+.claude/
+CLAUDE.md
+test-procedures/
+TEST_PROCEDURE_*.html
+
+# Editors
+.vscode/
+.idea/
+*.code-workspace
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Nothing here is built, but a stray dependency tree should never land in the resource.
+node_modules/
+__pycache__/
+*.pyc

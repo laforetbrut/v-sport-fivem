@@ -1,0 +1,169 @@
+--[[
+    locales/en.lua
+
+    English. This is the FALLBACK: any key missing from another language falls through to
+    this file, so every key the resource uses has to exist here.
+
+    locales/en.lua and locales/fr.lua must stay key-for-key identical.
+]]
+
+Locale.register('en', {
+
+    -- --- Stats -----------------------------------------------------------------------
+    ['stat.strength']           = 'Strength',
+    ['stat.strength_desc']      = 'Melee damage and how much punishment you take',
+    ['stat.breath']             = 'Lung capacity',
+    ['stat.breath_desc']        = 'How long you last underwater, and how fast you swim',
+    ['stat.stamina']            = 'Stamina',
+    ['stat.stamina_desc']       = 'Sprint speed, recovery and passive healing',
+
+    -- --- Equipment -------------------------------------------------------------------
+    ['equip.bench_press']       = 'Bench press',
+    ['equip.bench_press_desc']  = 'Heavy chest work. The backbone of a strength routine.',
+    ['equip.free_weights']      = 'Free weights',
+    ['equip.free_weights_desc'] = 'Dumbbells and barbells. Steady, reliable strength.',
+    ['equip.weight_rack']       = 'Weight rack',
+    ['equip.weight_rack_desc']  = 'Compound lifting under a loaded bar. Hard, and worth it.',
+    ['equip.kettlebell']        = 'Kettlebells',
+    ['equip.kettlebell_desc']   = 'Explosive swings. Strength and wind together.',
+
+    ['equip.pull_ups']          = 'Pull-ups',
+    ['equip.pull_ups_desc']     = 'Your own bodyweight, over and over.',
+    ['equip.dip_bars']          = 'Dip bars',
+    ['equip.dip_bars_desc']     = 'Triceps and shoulders on parallel bars.',
+    ['equip.push_ups']          = 'Push-ups',
+    ['equip.push_ups_desc']     = 'No equipment needed. Works anywhere there is floor.',
+    ['equip.sit_ups']           = 'Sit-ups',
+    ['equip.sit_ups_desc']      = 'Core work. Builds wind more than muscle.',
+    ['equip.muscle_flex']       = 'Pose in the mirror',
+    ['equip.muscle_flex_desc']  = 'Not really training. Feels good though.',
+
+    ['equip.punching_bag']      = 'Heavy bag',
+    ['equip.punching_bag_desc'] = 'Rounds on the bag. Power, wind and lungs.',
+    ['equip.speed_bag']         = 'Speed bag',
+    ['equip.speed_bag_desc']    = 'Rhythm and timing. Relentless.',
+
+    ['equip.treadmill']         = 'Treadmill',
+    ['equip.treadmill_desc']    = 'Distance work. The best stamina in the building.',
+    ['equip.exercise_bike']     = 'Exercise bike',
+    ['equip.exercise_bike_desc']= 'Low impact, long sessions.',
+    ['equip.rowing_machine']    = 'Rowing machine',
+    ['equip.rowing_machine_desc']= 'Everything at once. Legs, back, lungs.',
+    ['equip.skipping_rope']     = 'Skipping rope',
+    ['equip.skipping_rope_desc']= 'Fast feet and hard breathing.',
+    ['equip.battle_ropes']      = 'Battle ropes',
+    ['equip.battle_ropes_desc'] = 'Brutal intervals. Arms and lungs both give out.',
+
+    ['equip.yoga']              = 'Yoga',
+    ['equip.yoga_desc']         = 'Breath control. Nothing else builds lungs this fast on land.',
+    ['equip.stretching']        = 'Stretching',
+    ['equip.stretching_desc']   = 'Recovery work. Gentle, and it still counts.',
+
+    ['equip.leg_press']         = 'Leg press',
+    ['equip.leg_press_desc']    = 'Loaded legs. Heavy without the balance.',
+    ['equip.cable_machine']     = 'Cable machine',
+    ['equip.cable_machine_desc']= 'Controlled resistance through the full range.',
+
+    -- --- Interaction -----------------------------------------------------------------
+    ['prompt.key']              = '[%s] %s',
+    ['prompt.choose']           = '[%s] %s   ([%s] change)',
+    ['prompt.busy']             = 'Someone is already using this',
+    ['prompt.cooldown']         = 'Ready in %s',
+
+    -- --- Session ---------------------------------------------------------------------
+    ['session.rep']             = 'REP %d / %d',
+    ['session.quality']         = 'FORM',
+    ['session.cancel']          = 'Hold [%s] to stop',
+    ['session.perfect']         = 'PERFECT',
+    ['session.good']            = 'GOOD',
+    ['session.miss']            = 'MISS',
+    ['session.streak']          = 'x%.2f',
+    ['session.aborted']         = 'You could not keep the pace',
+    ['session.nothing_gained']  = 'That was not a workout',
+
+    -- --- Notifications ---------------------------------------------------------------
+    ['notify.gained']           = '+%.2f %s',
+    ['notify.gained_multi']     = 'Workout finished: %s',
+    ['notify.lost']             = '-%.1f %s',
+    ['notify.decay_applied']    = 'You have not trained in a while: %s',
+    ['notify.milestone']        = '%s has reached %d%%',
+    ['notify.maxed']            = '%s is at its peak',
+    ['notify.buff_applied']     = '%s %+.1f for %s',
+    ['notify.buff_expired']     = '%s is back to normal',
+    ['notify.multiplier_applied']= 'Training %s: x%.2f for %s',
+    ['notify.cooldown']         = 'You need to catch your breath. %s',
+    ['notify.too_tired']        = 'You are too tired for this to do much',
+    ['notify.no_permission']    = 'You are not allowed to do that',
+    ['notify.blocked']          = 'You cannot train right now',
+    ['notify.requirement_stat'] = 'You need %s at %d%% for this',
+    ['notify.requirement_job']  = 'This is not for you',
+    ['notify.requirement_item'] = 'You need a %s',
+    ['notify.not_saved']        = 'Your progress is not being saved: no database is connected',
+
+    -- --- Allowance -------------------------------------------------------------------
+    ['allowance.blocked']       = 'Your body has had enough. Rest for %s.',
+    ['allowance.blocked_stat']  = 'You cannot push %s any further today',
+    ['allowance.restored']      = 'You are recovered and can train again',
+    ['allowance.remaining']     = '%.0f / %.0f left',
+    ['allowance.resets_in']     = 'Recovers in %s',
+    ['allowance.reduced']       = 'Recovery time cut to %s',
+    ['panel.allowance']         = 'TRAINING ALLOWANCE',
+
+    -- --- Items -----------------------------------------------------------------------
+    ['item.whey_used']          = 'Whey protein. Your body recovers in %s instead.',
+    ['item.protein_used']       = 'Protein bar. %.0f allowance back.',
+    ['item.preworkout_used']    = 'Pre-workout. Gains x%.2f for %s.',
+    ['item.drink_used']         = 'Sports drink. You get your breath back.',
+    ['item.cooldown']           = 'Not yet. Wait %s.',
+    ['item.no_effect']          = 'That would not do anything right now',
+
+    -- --- Refusals --------------------------------------------------------------------
+    ['refuse.in_vehicle']       = 'Not from a vehicle',
+    ['refuse.dead']             = 'Not right now',
+    ['refuse.cuffed']           = 'Not with your hands like that',
+    ['refuse.swimming']         = 'Not in the water',
+    ['refuse.combat']           = 'Put the weapon away first',
+    ['refuse.ragdoll']          = 'Get up first',
+    ['refuse.falling']          = 'Get your feet on the ground',
+    ['refuse.distance']         = 'Too far away',
+    ['refuse.rate_limit']       = 'You have trained enough for one hour',
+
+    -- --- Stats panel -----------------------------------------------------------------
+    ['panel.title']             = 'PHYSICAL CONDITION',
+    ['panel.close']             = '[%s] Close',
+    ['panel.total_sessions']    = 'Total workouts: %d',
+    ['panel.next_decay']        = 'Loses %.0f in %s',
+    ['panel.no_decay']          = 'Holding steady',
+    ['panel.decay_paused']      = 'Decay paused',
+    ['panel.buffed']            = '%+.1f active',
+    ['panel.effects']           = 'CURRENT EFFECTS',
+    ['panel.effect_melee']      = 'Melee damage',
+    ['panel.effect_defense']    = 'Melee resistance',
+    ['panel.effect_underwater'] = 'Breath held',
+    ['panel.effect_swim']       = 'Swim speed',
+    ['panel.effect_sprint']     = 'Sprint speed',
+    ['panel.effect_regen']      = 'Health recovery',
+    ['panel.effect_recovery']   = 'Stamina recovery',
+    ['panel.effect_health']     = 'Maximum health',
+    ['panel.effect_none']       = 'Stats are cosmetic on this server',
+    ['panel.seconds']           = '%.0fs',
+    ['panel.percent']           = '%+.0f%%',
+    ['panel.fatigue']           = 'Fatigue: gains at %d%%',
+    ['panel.rested']            = 'Well rested',
+    ['panel.empty']             = 'You have never trained',
+
+    -- --- Commands --------------------------------------------------------------------
+    ['cmd.stats']               = 'Show your physical condition',
+    ['cmd.info']                = 'Print what v-sport detected',
+    ['cmd.scan']                = 'List sport props around you',
+    ['cmd.spot']                = 'Print a Config.Spots line for where you stand',
+    ['cmd.admin']               = 'Set, add to or reset a player\'s training',
+    ['cmd.admin_usage']         = 'Usage: /%s <get|set|add|reset|buff> <id> [stat] [value] [seconds]',
+    ['cmd.spot_usage']          = 'Usage: /%s <equipment key>',
+    ['cmd.no_player']           = 'No player with that ID',
+    ['cmd.no_stat']             = 'No stat called "%s". Known: %s',
+    ['cmd.no_equipment']        = 'No equipment called "%s"',
+    ['cmd.done']                = 'Done',
+    ['cmd.admin_set']           = '%s: %s is now %.2f',
+    ['cmd.admin_reset']         = '%s has been reset',
+})
