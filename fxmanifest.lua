@@ -5,7 +5,7 @@ lua54 'yes'
 name 'v-sport'
 author 'vyrriox'
 description 'Physical training for FiveM on qb-core, qbx_core, ESX and ox_core: every sport prop in the map becomes usable, a rhythm QTE drives the workout, and strength, lung capacity and stamina are trained, decay when unused, and can be pushed around by any other resource.'
-version '1.0.2'
+version '1.0.3'
 
 -- No hard dependency, on purpose. oxmysql, ox_target, qb-target, qtarget, ox_lib,
 -- interact-sound and every framework are detected at runtime and all optional.

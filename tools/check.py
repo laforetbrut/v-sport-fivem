@@ -209,7 +209,13 @@ for key in eq_keys:
 # every /vsportadd, /vsportremove and /vsportreload, and a rebuild does NOT re-read the file: it
 # restores from a snapshot taken at boot. So a snapshot that dropped a `false` would look perfect at
 # boot and turn five exercises on the first time an admin touched anything. Build twice and compare.
-OFF_BY_DEFAULT = {"dip_bars", "skipping_rope", "park_bench", "basketball", "volleyball"}
+#
+# leg_press is the sixth and the only one switched off for PLACEMENT rather than animation: the body
+# lands wrong on prop_muscle_bench_06 in the world, which is the fourth report of that symptom about
+# a prop_muscle_bench model. Its numbers are kept, because the two rotations are properties of the
+# model and transfer; only the offset's Z, which depends on where the map put the prop's origin,
+# does not.
+OFF_BY_DEFAULT = {"dip_bars", "skipping_rope", "park_bench", "basketball", "volleyball", "leg_press"}
 
 for key in sorted(OFF_BY_DEFAULT):
     if lua.eval(f"Equipment.catalogue['{key}'] ~= nil") is not True:

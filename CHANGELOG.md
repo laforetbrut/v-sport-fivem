@@ -7,6 +7,51 @@ uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.0.3] - 2026-08-07
+
+The leg press is switched off by default. That is the whole release.
+
+### Changed
+
+- **`leg_press` ships disabled.** The body lands in the wrong place on `prop_muscle_bench_06` in the
+  world, reported in play. It is the fourth time this exact symptom has been reported about a
+  `prop_muscle_bench` model: `_02`, `_04` and `_05` were taken out of the bench press for it, and
+  this is `_06`.
+
+  The numbers were not careless, and that is the part worth reading. An `animOffset` is measured from
+  the prop's ORIGIN, and how high that origin sits above the ground is decided by whoever placed the
+  prop in the map, not by the model. The alignment studio spawns its own copy on flat ground to
+  measure against, so its vertical is only ever right for a copy placed the way the studio places it.
+  For a model the map puts somewhere else, that number is a guess wearing three decimal places.
+
+  **Nothing was deleted.** The model really is a leg press, the seated animation really is the right
+  one, and the 37.5 degrees of recline really is what the machine looks like - all three are
+  properties of the MODEL and transfer to any server. Only the offset's Z did not survive contact
+  with the map. An operator whose map puts the machine where those numbers fit needs one line:
+
+      Config.ExtraEquipment = { leg_press = { enabled = true } }
+
+  and then `/vsportprop leg_press prop_muscle_bench_06` to take their own measurement. Expect to
+  change that one number and nothing else. A gym MLO with a real leg press is the better route back,
+  because its origin can be measured once and trusted.
+
+  The entry had been carrying two contradictory comments a dozen lines apart: one saying the
+  placement was never measured, one saying it was measured on real ground. Both were written
+  honestly. The measurement happened, it just could not transfer. They are now one comment that says
+  which half of the data moves between servers and which half does not.
+
+- The catalogue is **17 exercises over 30 models**, from 18 over 31. `README.md` and `CONFIG.md` were
+  still quoting the old pair.
+
+### Added
+
+- `tools/check.py` asserts six exercises ship switched off rather than five, still checked after a
+  rebuild. `PROPS.md` now states the **two different reasons** an entry can be off - no animation
+  matches the equipment, or the body lands in the wrong place on it - because they call for
+  completely different work from anybody who wants the entry back.
+
+---
+
 ## [1.0.2] - 2026-08-07
 
 One defect, found on somebody else's server, that stopped the resource working at all on a stock
@@ -317,6 +362,49 @@ First release.
 # Journal des modifications (Version Française)
 
 Toutes les modifications notables de v-sport. La plus récente en premier.
+
+---
+
+## [1.0.3] - 2026-08-07
+
+La presse a cuisses est desactivee par defaut. C'est toute la version.
+
+### Modifie
+
+- **`leg_press` est livre desactive.** Le corps se place au mauvais endroit sur
+  `prop_muscle_bench_06` dans le monde. C'est la quatrieme fois que ce symptome exact est signale a
+  propos d'un modele `prop_muscle_bench` : `_02`, `_04` et `_05` ont ete retires du developpe couche
+  pour la meme raison, et voici `_06`.
+
+  Les valeurs n'etaient pas negligees, et c'est la ce qui merite d'etre lu. Un `animOffset` se mesure
+  depuis l'ORIGINE du prop, et la hauteur de cette origine au-dessus du sol est decidee par celui qui
+  a pose le prop dans la carte, pas par le modele. Le studio d'alignement fait apparaitre sa propre
+  copie sur un sol plat pour mesurer, donc sa verticale n'est juste que pour une copie posee comme
+  lui la pose.
+
+  **Rien n'a ete supprime.** Le modele est bien une presse a cuisses, l'animation assise est bien la
+  bonne, et les 37,5 degres d'inclinaison correspondent bien a la machine : ces trois donnees
+  appartiennent au MODELE et fonctionnent sur n'importe quel serveur. Seul le Z de l'offset n'a pas
+  survecu au contact de la carte. Une ligne suffit pour la reactiver :
+
+      Config.ExtraEquipment = { leg_press = { enabled = true } }
+
+  puis `/vsportprop leg_press prop_muscle_bench_06` pour prendre sa propre mesure. Il ne devrait y
+  avoir que ce nombre a changer. Un MLO de salle avec une vraie presse a cuisses est le meilleur
+  chemin de retour.
+
+  L'entree portait deux commentaires contradictoires a douze lignes d'ecart : l'un disant que le
+  placement n'avait jamais ete mesure, l'autre qu'il l'avait ete sur sol reel. Les deux etaient
+  honnetes. La mesure a bien eu lieu, elle ne pouvait simplement pas se transferer.
+
+- Le catalogue passe a **17 exercices sur 30 modeles**. `README.md` et `CONFIG.md` citaient encore
+  l'ancien couple.
+
+### Ajoute
+
+- `tools/check.py` verifie six exercices desactives au lieu de cinq, toujours apres une
+  reconstruction. `PROPS.md` indique desormais les **deux raisons** distinctes qu'a une entree d'etre
+  coupee, parce qu'elles demandent un travail completement different pour la recuperer.
 
 ---
 

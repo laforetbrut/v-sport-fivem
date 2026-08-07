@@ -11,7 +11,7 @@ when nobody is training.
 ## Features
 
 - **Finds the equipment itself** - the object pool around the player is matched against a
-  catalogue of 18 exercises over 31 verified prop models: benches, dumbbells, pull-up bars,
+  catalogue of 17 exercises over 30 verified prop models: benches, dumbbells, pull-up bars,
   heavy bags, treadmills, yoga mats, rowing machines, battle ropes. `/vsportscan` prints
   what your own map actually has, including anything inside a custom MLO, ready to paste
   into the config.

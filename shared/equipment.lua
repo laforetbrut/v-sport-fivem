@@ -1474,24 +1474,40 @@ Equipment.catalogue = {
 
     leg_press = {
         order = 60,
+        --[[
+            OFF BY DEFAULT, AND THE ONLY ONE HERE SWITCHED OFF FOR PLACEMENT RATHER THAN ANIMATION.
+
+            The body lands wrong on prop_muscle_bench_06 in the world. Reported in play, and it is
+            the fourth time this exact symptom has been reported about a prop_muscle_bench model:
+            _02, _04 and _05 were taken out of the bench press for it, and this is _06.
+
+            THE NUMBERS BELOW ARE NOT WRONG BY CARELESSNESS, AND THAT IS THE POINT. `animOffset` is
+            measured from the PROP'S ORIGIN, and how high that origin sits above the ground is
+            decided by whoever placed the prop in the map, not by the model. The alignment studio
+            spawns its own copy on flat ground to measure against, so its answer is only ever right
+            for a copy placed the way the studio places it. For a model the map puts somewhere else,
+            the vertical is a guess wearing three decimal places.
+
+            Which is why this entry once carried two contradictory comments a dozen lines apart: one
+            saying the placement was not measured yet, one saying it was measured on real ground.
+            Both were written honestly. The measurement happened; it just could not transfer.
+
+            EVERYTHING IS KEPT rather than deleted, because nothing here is a guess: the model really
+            is a leg press, the seated animation really is the right one, and the 37.5 degrees of
+            recline really is what the machine looks like. Only the vertical could not be pinned
+            down. An operator whose map places this machine somewhere the numbers do fit needs one
+            line:
+
+                Config.ExtraEquipment = { leg_press = { enabled = true } }
+
+            and then /vsportprop leg_press prop_muscle_bench_06 to take their own measurement.
+
+            A gym MLO with a real leg press is the better route back: turn it on and give it your own
+            model, whose origin you can measure once and trust.
+        ]]
+        enabled = false,
         label = 'equip.leg_press',
         description = 'equip.leg_press_desc',
-        --[[
-            NO LONGER MLO-ONLY: the base game does ship a leg press, and it spent this whole
-            catalogue's life listed as a weight bench.
-
-            prop_muscle_bench_06 is a SEATED machine. It was in bench_press with the other five
-            prop_muscle_bench models, given a lying-down animation, and identified only when
-            /vsporttour spawned each model in turn and an operator said "this one should be sitting".
-
-            Every name this entry used to list was rejected by IsModelValid - they were guesses that
-            could never have matched - so it waited for an MLO while the answer was in the base
-            files under a misleading name.
-
-            The placement is NOT measured yet: this needs /vsportprop leg_press
-            prop_muscle_bench_06, and until then the seated sit-up animation plays at the entry's
-            default. Add your own machine names to Config.ExtraEquipment as well.
-        ]]
         models = {
             'prop_muscle_bench_06',
         },
@@ -1501,19 +1517,22 @@ Equipment.catalogue = {
         cooldown = 90,
 
         --[[
-            SEATED IN THE MACHINE. Measured on real ground against prop_muscle_bench_06.
+            SEATED IN THE MACHINE, taken in the alignment studio against a spawned copy.
 
-            37.5 degrees of pitch is the point of it: a leg press seat reclines, so the body is tipped
-            back rather than sat upright, and `animHeading` cannot say that - it is one number around
-            Z. This is the second exercise in the file to need the full three-axis rotation, after the
-            incline benches, and both were found the same way: by looking at the model.
+            KEPT AS A STARTING POINT, NOT AS A VERIFIED VALUE. The two rotations are properties of
+            the MODEL and transfer to any server: 37.5 degrees of pitch is the point of the whole
+            entry, because a leg press seat reclines and the body has to be tipped back rather than
+            sat upright, which `animHeading` cannot express - it is one number around Z. This is the
+            second exercise in the file to need the full three-axis rotation, after the incline
+            benches, and both were found the same way, by looking at the model.
+
+            The 0.65 on the offset's Z is the part that did not survive contact with the map, and it
+            is the reason the entry is switched off above. Anybody re-enabling this should expect to
+            change that one number and nothing else.
 
             On the entry rather than in modelOverrides because it is the only model here. An override
             that covers nothing but the reference repeats the entry's own numbers, which is noise
             until it drifts and then it is a bug.
-
-            The 2.9 on Z is kept as measured. Three degrees is invisible, and unlike a barbell lying
-            flat there is no canonical angle to argue it should be zero.
         ]]
         placeAnim = true,
         animOffset = vector3(0.00, -0.64, 0.65),

@@ -2,7 +2,7 @@
 
 Which props v-sport recognises, and how to add your own.
 
-**18 exercises over 31 prop models.** Every model name here was verified
+**17 exercises over 30 prop models.** Every model name here was verified
 against the game with `IsModelValid` - 85 names that circulate on community prop lists do not
 exist in the base files at all and were removed rather than left in to pad the count. A whole-map
 sweep then recorded which of the survivors are actually placed somewhere, which is what the last
@@ -192,19 +192,27 @@ measured in sessions of that stat.
 | **Battle ropes** | `battle_ropes` | force 0.45, lungs 0.2, stamina 0.6 | - | your MLO only - no base-game model |
 | **Yoga** | `yoga` | lungs 1, stamina 0.15 | `prop_yoga_mat_01`<br>`prop_yoga_mat_02`<br>`prop_yoga_mat_03` | all placed on the map |
 | **Stretching** | `stretching` | lungs 0.35, stamina 0.2 | `prop_yoga_mat_01`<br>`prop_yoga_mat_02`<br>`prop_yoga_mat_03` | all placed on the map |
-| **Leg press** | `leg_press` | force 0.8, stamina 0.3 | `prop_muscle_bench_06` | all placed on the map |
 | **Cable machine** | `cable_machine` | force 0.7, stamina 0.2 | - | your MLO only - no base-game model |
 
 ---
 
 ## Off by default
 
-These are complete and correct entries. They are switched off because **no animation the base game
-ships matches the equipment**, and a body doing visibly the wrong thing reads worse than no option
-at all: nothing in GTA V does a dip, skips a rope, throws a basketball or spikes a volleyball, and
-training on a street bench you would normally sit on reads as absurd.
+These are complete and correct entries, switched off for one of two reasons.
 
-Each is one line away from coming back, and worth reconsidering if you have added animations:
+**Five of them because no animation the base game ships matches the equipment**, and a body doing
+visibly the wrong thing reads worse than no option at all: nothing in GTA V does a dip, skips a
+rope, throws a basketball or spikes a volleyball, and training on a street bench you would normally
+sit on reads as absurd.
+
+**The leg press because the body lands in the wrong place on it.** Not a mistake in the numbers: an
+`animOffset` is measured from the prop's ORIGIN, and how high that origin sits above the ground is
+decided by whoever placed the prop in your map, not by the model. The alignment studio spawns its
+own copy to measure against, so its vertical is only right for a copy placed the way the studio
+places it. If your map puts this machine somewhere those numbers fit, turn it on and measure it
+yourself with `/vsportprop leg_press prop_muscle_bench_06`. Only the offset's Z should need changing.
+
+Each is one line away from coming back:
 
 ```lua
 Config.ExtraEquipment = {
@@ -213,6 +221,7 @@ Config.ExtraEquipment = {
     basketball    = { enabled = true },
     volleyball    = { enabled = true },
     park_bench    = { enabled = true },
+    leg_press     = { enabled = true },
 }
 ```
 
@@ -223,6 +232,7 @@ Config.ExtraEquipment = {
 | **Skipping rope** | `skipping_rope` | lungs 0.45, stamina 0.65 | `prop_skip_rope_01` | all placed on the map |
 | **Shoot hoops** | `basketball` | lungs 0.25, stamina 0.55 | `prop_bskball_01`<br>`prop_basketball_net` | supported, none found placed on the map |
 | **Beach volleyball** | `volleyball` | lungs 0.2, stamina 0.5 | `prop_beach_volball01`<br>`prop_beach_volball02` | all placed on the map |
+| **Leg press** | `leg_press` | force 0.8, stamina 0.3 | `prop_muscle_bench_06` | all placed on the map |
 
 ---
 
@@ -283,6 +293,11 @@ detecter. Placez-vous dessus et tapez `/vsportspot pull_ups` pour obtenir une li
 `Config.Spots`. Huit exercices sont livres sans aucun modele de base pour cette raison : tous les
 noms qu'ils listaient ont ete rejetes par `IsModelValid`. Ajoutez les votres et ils fonctionnent.
 
-**Les exercices desactives par defaut** le sont parce qu'aucune animation du jeu de base ne
-correspond a l'equipement. Un corps qui fait visiblement autre chose est pire que pas d'option du
-tout. Chacun se reactive en une ligne, voir la section anglaise ci-dessus.
+**Les exercices desactives par defaut** le sont pour deux raisons. Cinq parce qu'aucune animation du
+jeu de base ne correspond a l'equipement, et qu'un corps qui fait visiblement autre chose est pire
+que pas d'option du tout. La presse a cuisses parce que le corps se place au mauvais endroit dessus :
+un `animOffset` se mesure depuis l'ORIGINE du prop, et la hauteur de cette origine au-dessus du sol
+est decidee par celui qui a pose le prop dans la carte, pas par le modele. Le studio d'alignement
+mesure sur sa propre copie, donc sa verticale n'est juste que pour une copie posee comme lui la pose.
+
+Chacun se reactive en une ligne, voir la section anglaise ci-dessus.

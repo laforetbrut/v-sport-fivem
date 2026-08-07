@@ -209,7 +209,7 @@ resource first.
 ## Finding the sport props on your own map
 
 The shipped catalogue in `shared/equipment.lua` covers the base-game sport props and a spread
-of names used by common gym MLOs - 18 exercises across 31 verified model names. **It cannot know what
+of names used by common gym MLOs - 17 exercises across 30 verified model names. **It cannot know what
 your map has.** No shipped list can.
 
 So: stand in your gym and run

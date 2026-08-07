@@ -5,6 +5,37 @@ stops it recurring. Read it before working in an area that already appears here.
 
 ---
 
+## [2026-08-07 16:20] — A studio-measured vertical shipped enabled, for the fourth time
+
+**Context:** `leg_press` on `prop_muscle_bench_06`, measured in the alignment studio, released
+enabled in 1.0.1 and 1.0.2.
+
+**Error:** Reported in play: the body lands in the wrong place on the machine. The same symptom
+already cost `prop_muscle_bench_02`, `_04` and `_05` their place in the bench press.
+
+**Root cause:** Not the measurement. `animOffset` is measured from the prop's ORIGIN, and how high
+that origin sits above the ground is decided by whoever placed the prop in the map. The studio
+spawns its own copy on flat ground, so it can only ever produce a vertical that is right for a copy
+placed the way the studio places it. The horizontal components and the two rotations are properties
+of the MODEL and do transfer; the Z is a property of the PLACEMENT and does not.
+
+**Fix:** `enabled = false` on the entry, everything else kept, and one comment replacing the two
+contradictory ones the entry had been carrying - one saying the placement was never measured, one
+saying it was measured on real ground. Both were written honestly on the day they were written.
+
+**Prevention:** An entry whose vertical came only from the studio must not ship enabled. The studio
+answers "where does this body sit on a copy I placed", and shipping treats the answer as though it
+were "where does this body sit on the copy YOUR map placed". Those are different questions and the
+tool cannot tell them apart, so the judgement has to be made outside it. When in doubt the entry
+ships off with its numbers intact and a one-line route back, which costs an operator one config line
+and costs a player nothing, against a body sitting in mid-air for everyone.
+
+**What this does not change:** an entry measured against a model the map really places, and then
+confirmed on a second instance somewhere else, is verified in the sense that matters. That is what
+`verifiedModels` records and why it is not the same field as `tunedAgainst`.
+
+---
+
 ## [2026-08-07 15:40] — type() == 'function' rejected a callable proxy, and no stats ever loaded
 
 **Context:** The first install by somebody other than the author, on a stock qb-core server.
