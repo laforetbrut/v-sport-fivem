@@ -54,11 +54,19 @@ local function field(object, name)
     return value
 end
 
---- Call `fn` and return its result, or nil if it threw. Every call into somebody else's code
---- goes through here: a framework that changed a signature between versions must degrade,
---- never take this resource down with it.
+--[[
+    Call `fn` and return its result, or nil if it threw. Every call into somebody else's code
+    goes through here: a framework that changed a signature between versions must degrade,
+    never take this resource down with it.
+
+    THE GATE IS Sport.callable, NEVER type(fn) == 'function'. A framework method that has
+    crossed a resource boundary is a table with a __call metamethod, and on stock qb-core -
+    which does not export GetPlayer, so the fallback is the only path - a type test here meant
+    no player was ever resolved and no stats were ever loaded. Sport.callable carries the
+    measurement.
+]]
 local function try(fn, ...)
-    if type(fn) ~= 'function' then return nil end
+    if not Sport.callable(fn) then return nil end
     local ok, result = pcall(fn, ...)
     if not ok then return nil end
     return result
@@ -266,7 +274,10 @@ ADAPTERS.esx = {
     end,
 
     addCommand = function(object, name, help, args, restricted, handler)
-        if type(object.RegisterCommand) ~= 'function' then return false end
+        -- field(), not object.RegisterCommand: the raw index raises on an exports-table core.
+        -- Sport.callable, not a type test: a method read off a shared object is a callable table.
+        local register = field(object, 'RegisterCommand')
+        if not Sport.callable(register) then return false end
 
         --[[
             ESX's signature is (name, group, cb, allowConsole, suggestion), and its callback gets
@@ -281,7 +292,7 @@ ADAPTERS.esx = {
             given an argument list, and this resource does its own argument handling. The suggestion
             carries the help text only.
         ]]
-        return pcall(object.RegisterCommand, object, name,
+        return pcall(register, object, name,
             restricted and 'admin' or 'user',
             function(xPlayer, commandArgs)
                 handler(xPlayer and xPlayer.source or 0, commandArgs)

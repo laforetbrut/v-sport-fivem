@@ -199,6 +199,42 @@ for key in eq_keys:
     if mind is None or mind <= 0:
         fail(f"EQUIPMENT {key}: minimumDurationMs returned {mind}")
 
+# --- what ships switched off must stay switched off, on every rebuild --------------------
+#
+# Five exercises are `enabled = false` because no base-game animation matches them, and one of them -
+# park_bench - carries FIFTEEN street-bench models. If it ever came back on by itself, a server that
+# enabled nothing would find every bench in the city offering sit-ups.
+#
+# The rebuild is what makes this worth asserting rather than reading. Equipment.build() runs again on
+# every /vsportadd, /vsportremove and /vsportreload, and a rebuild does NOT re-read the file: it
+# restores from a snapshot taken at boot. So a snapshot that dropped a `false` would look perfect at
+# boot and turn five exercises on the first time an admin touched anything. Build twice and compare.
+OFF_BY_DEFAULT = {"dip_bars", "skipping_rope", "park_bench", "basketball", "volleyball"}
+
+for key in sorted(OFF_BY_DEFAULT):
+    if lua.eval(f"Equipment.catalogue['{key}'] ~= nil") is not True:
+        fail(f"DEFAULTS '{key}' is documented as off by default but is not in the catalogue")
+    elif key in eq_keys:
+        fail(f"DEFAULTS '{key}' ships enabled - it must stay off until an operator asks for it")
+
+lua.execute("Equipment.build(); Equipment.build()")
+rebuilt = seq(lua.eval("Equipment.keys"))
+
+if set(rebuilt) != set(eq_keys):
+    added = sorted(set(rebuilt) - set(eq_keys))
+    lost = sorted(set(eq_keys) - set(rebuilt))
+    fail(f"DEFAULTS a rebuild changes the catalogue: +{added} -{lost}"
+         " - Equipment.shipped is not a faithful snapshot, so /vsportadd would flip these")
+else:
+    print(f"  defaults: {len(OFF_BY_DEFAULT)} exercises off, and still off after a rebuild  OK")
+
+# Config.ExtraEquipment is the file an operator edits to turn one back on. It has to ship empty,
+# or they inherit somebody else's decision without making one.
+if lua.eval("Sport.count(Config.ExtraEquipment)") != 0:
+    fail("DEFAULTS Config.ExtraEquipment ships non-empty - every install would get its entries")
+else:
+    print("  Config.ExtraEquipment: ships empty  OK")
+
 # --- model overrides and staging -------------------------------------------
 #
 # Per-model positioning is written by NAME in the config and looked up by HASH at runtime, so
@@ -369,6 +405,31 @@ if raw_core:
          + " - use field(object, name) or a pcall; ox_core's core object RAISES on a missing key")
 else:
     print("  core object: never indexed raw  OK")
+
+# --- a framework method is never gated on type() == 'function' ---------------------------
+#
+# FiveM hands an object across a resource boundary as a proxy: qb-core's Functions.GetPlayer arrives
+# as a TABLE with a __call metamethod. `type(fn) ~= 'function' then return nil` therefore rejected a
+# perfectly callable object, every retry answered nil identically, and on stock qb-core - which does
+# not export GetPlayer, so the fallback is the only path - no player was ever resolved and nobody's
+# stats ever loaded. Sport.callable asks the question that can be answered; the pcall around the call
+# is the guard.
+#
+# Scoped to bridge/ and server/, which is every line that touches somebody else's object. The one
+# legitimate type test lives in client/session.lua and is about a NATIVE existing on a game build,
+# where the value really is a function or really is nil.
+type_gates = []
+for path in list((ROOT / "bridge").rglob("*.lua")) + list((ROOT / "server").glob("*.lua")):
+    code = strip_comments(path.read_text(encoding="utf-8"))
+    for num, line in enumerate(code.splitlines(), 1):
+        if re.search(r"type\([^)]*\)\s*[=~]=\s*'function'", line):
+            type_gates.append(f"{path.name}:{num}")
+
+if type_gates:
+    fail("CALLABLE a framework value is gated on type() == 'function' at " + ", ".join(type_gates)
+         + " - use Sport.callable(); a method read across a resource boundary is a callable table")
+else:
+    print("  callable: no framework value gated on type() == 'function'  OK")
 
 # --- a player's F8 is not a log file -----------------------------------------------------
 #

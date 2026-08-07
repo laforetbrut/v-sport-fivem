@@ -7,6 +7,60 @@ uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.0.2] - 2026-08-07
+
+One defect, found on somebody else's server, that stopped the resource working at all on a stock
+qb-core. It started, detected the framework, registered its items and announced itself ready. It
+simply never loaded a single player's stats.
+
+### Fixed
+
+- **No stats loaded on a stock qb-core.** `Bridge.identifier` could not resolve anybody, so every
+  player joined with no profile, the server answered no session request, and the only sign was
+  `could not resolve an identifier for <name>` in the console.
+
+  The cause is one line. `try()` refused to call anything that was not `type(fn) == 'function'`, and
+  FiveM hands an object across a resource boundary as a PROXY: `QBCore.Functions.GetPlayer` arrives
+  as a TABLE carrying a `__call` metamethod. Measured on the affected server:
+
+      type(gp) = table     getmetatable(gp).__call = function     gp(src) -> the player
+
+  So the guard rejected an object that was perfectly callable, and all forty retries answered nil
+  identically. Twenty seconds spent asking the same wrong question.
+
+  It takes both halves to bite, which is why it survived every test so far: the qb adapter tries
+  `exports['qb-core']:GetPlayer` first and only falls through to `QBCore.Functions.GetPlayer` when
+  that export does not exist. Stock qb-core does not export GetPlayer. A server whose qb-core carries
+  one never sees this.
+
+  The corroboration was already in the same boot log. `registered 4 usable items` printed on the same
+  server, in the same second, because item registration reaches its method through a truthiness test
+  and a pcall rather than through a type test. Two paths to one object, and only the gated one failed.
+
+- **The same gate, three more times.** The client bridge asked every framework question through an
+  identical `try()`. ESX's `RegisterCommand` and `RegisterUsableItem` were each gated on
+  `type() == 'function'` as well, which would have left `/vsportadmin` and every usable item
+  unregistered on an ESX server for exactly the same reason. Found by searching for the pattern
+  rather than by waiting for three more reports.
+
+- `.github/SECURITY.md` said 71 exports. There are 72.
+
+### Added
+
+- **`Sport.callable(value)`** - one place that carries the measurement above - and a `tools/check.py`
+  assertion that nothing under `bridge/` or `server/` is ever gated on `type() == 'function'` again.
+  The one legitimate type test asks whether a NATIVE exists on a game build, where the value really
+  is a function or really is nil; it lives in `client/session.lua` and is outside the scanned paths
+  on purpose.
+
+- **Two assertions on what ships switched off.** The five exercises that are `enabled = false` are
+  now checked to be off after `Equipment.build()` has run a SECOND time, because a rebuild restores
+  from a boot-time snapshot instead of re-reading the file. A snapshot that dropped a `false` would
+  look perfect in the console and turn fifteen street benches into gym equipment the first time an
+  admin ran `/vsportadd`. `Config.ExtraEquipment` is checked to ship empty.
+
+---
+
 ## [1.0.1] - 2026-08-07
 
 A hardening release. Nothing was added for its own sake: an audit went through the resource across
@@ -263,6 +317,55 @@ First release.
 # Journal des modifications (Version Française)
 
 Toutes les modifications notables de v-sport. La plus récente en premier.
+
+---
+
+## [1.0.2] - 2026-08-07
+
+Un seul defaut, trouve sur le serveur de quelqu'un d'autre, qui empechait la ressource de fonctionner
+sur un qb-core d'origine. Elle demarrait, detectait le framework, enregistrait ses items et se
+declarait prete. Elle ne chargeait simplement jamais les stats de personne.
+
+### Corrige
+
+- **Aucune stat chargee sur un qb-core d'origine.** `Bridge.identifier` ne resolvait personne : chaque
+  joueur arrivait sans profil, le serveur ne repondait a aucune demande de seance, et le seul signe
+  etait `could not resolve an identifier for <nom>` dans la console.
+
+  La cause tient en une ligne. `try()` refusait d'appeler tout ce qui n'etait pas
+  `type(fn) == 'function'`, or FiveM fait traverser la frontiere d'une ressource a un objet sous forme
+  de PROXY : `QBCore.Functions.GetPlayer` arrive comme une TABLE portant un metamethode `__call`.
+  Mesure sur le serveur concerne :
+
+      type(gp) = table     getmetatable(gp).__call = function     gp(src) -> le joueur
+
+  Le garde-fou rejetait donc un objet parfaitement appelable, et les quarante tentatives repondaient
+  nil de facon identique.
+
+  Il faut les deux moities pour que ca morde, et c'est pourquoi ca a survecu a tous les tests :
+  l'adaptateur essaie d'abord `exports['qb-core']:GetPlayer` et ne retombe sur
+  `QBCore.Functions.GetPlayer` que si cet export n'existe pas. Un qb-core d'origine ne l'exporte pas.
+
+  La corroboration etait deja dans le meme journal de demarrage : `registered 4 usable items` s'est
+  affiche sur ce serveur, a la meme seconde, parce que l'enregistrement des items atteint sa methode
+  par un test de verite et un pcall, pas par un test de type. Deux chemins vers le meme objet, et seul
+  celui qui testait le type a echoue.
+
+- **Le meme garde-fou, trois fois de plus** : le pont client, puis `RegisterCommand` et
+  `RegisterUsableItem` cote ESX. `/vsportadmin` et tous les items utilisables seraient restes
+  non enregistres sur un serveur ESX, pour exactement la meme raison.
+
+### Ajoute
+
+- **`Sport.callable(value)`**, un seul endroit qui porte la mesure ci-dessus, et une assertion dans
+  `tools/check.py` : plus rien sous `bridge/` ou `server/` ne peut etre teste avec
+  `type() == 'function'`.
+
+- **Deux assertions sur ce qui est livre desactive.** Les cinq exercices `enabled = false` sont
+  verifies APRES un second `Equipment.build()`, parce qu'une reconstruction repart d'un instantane
+  pris au demarrage plutot que du fichier. Un instantane qui perdrait un `false` semblerait parfait
+  dans la console et transformerait quinze bancs publics en materiel de sport des le premier
+  `/vsportadd`. `Config.ExtraEquipment` est verifie vide.
 
 ---
 

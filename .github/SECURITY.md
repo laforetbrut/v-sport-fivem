@@ -12,7 +12,7 @@ Only the latest release receives fixes. Update before reporting.
 ## Reporting a vulnerability
 
 **Do not open a public issue for a security problem.** This resource writes to a server's database,
-exposes 71 exports that other resources use to change a character, and hands admins commands that
+exposes 72 exports that other resources use to change a character, and hands admins commands that
 teleport. A public report is an exploit handed to every server running it.
 
 Use GitHub's private reporting instead:

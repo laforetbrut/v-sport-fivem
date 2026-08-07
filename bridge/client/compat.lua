@@ -19,8 +19,11 @@ local function started(resource)
     return state == 'started' or state == 'starting'
 end
 
+--- Call `fn` and return its result, or nil if it threw. The gate is Sport.callable rather than
+--- a type test for the reason written there: a framework method read through an export is a
+--- callable table, not a function, and a type test silently rejects it.
 local function try(fn, ...)
-    if type(fn) ~= 'function' then return nil end
+    if not Sport.callable(fn) then return nil end
     local ok, result = pcall(fn, ...)
     if not ok then return nil end
     return result

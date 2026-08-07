@@ -157,6 +157,38 @@ function Sport.contains(list, wanted)
     return false
 end
 
+--[[
+    Whether `value` is worth attempting to call.
+
+    NOT `type(value) == 'function'`, and the difference is why a server ran for a day without
+    saving a single stat.
+
+    FiveM hands an object across a resource boundary as a PROXY. qb-core's
+    QBCore.Functions.GetPlayer arrives as a table carrying a __call metamethod, not as a
+    function. Measured on a live stock qb-core:
+
+        type(gp) = table    getmetatable(gp).__call = function    gp(src) -> the player
+
+    So `type(fn) ~= 'function' then return nil` rejected an object that was perfectly callable,
+    every one of the forty retries answered nil the same way, no identifier was ever resolved,
+    and every player joined without stats. The console said the framework was found, because it
+    was.
+
+    The corroboration was already in the same resource: server/items.lua reaches
+    CreateUseableItem through a truthiness test and a pcall, and item registration WORKED on the
+    same server, in the same boot, where the player lookup did not. Two paths to the same object,
+    one gated on type and one not, and only the gated one failed.
+
+    This answers the weaker question on purpose - function, or anything that could be a proxy -
+    because a metatable can be hidden behind __metatable and a stricter check would go back to
+    guessing. The pcall around the call is the real guard and always was; this only keeps a nil
+    or a stray string from being called at all.
+]]
+function Sport.callable(value)
+    local kind = type(value)
+    return kind == 'function' or kind == 'table' or kind == 'userdata'
+end
+
 -- ---------------------------------------------------------------------------------------
 -- Console
 -- ---------------------------------------------------------------------------------------

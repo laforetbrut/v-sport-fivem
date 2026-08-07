@@ -5,6 +5,39 @@ stops it recurring. Read it before working in an area that already appears here.
 
 ---
 
+## [2026-08-07 15:40] — type() == 'function' rejected a callable proxy, and no stats ever loaded
+
+**Context:** The first install by somebody other than the author, on a stock qb-core server.
+
+**Error:** `[v-sport] could not resolve an identifier for <name>; not loading their stats`, for every
+player, on every join. On the client: `no stats received from the server after 10 attempts`, then
+`the server did not answer a session request`.
+
+**Root cause:** `try()` in `bridge/server/framework.lua` gated on `type(fn) ~= 'function'`. FiveM
+passes an object across a resource boundary as a proxy, so `QBCore.Functions.GetPlayer` is a TABLE
+with a `__call` metamethod. Measured in game: `type=table`, `getmetatable(gp).__call=function`, and
+`gp(src)` returns the player. The guard rejected it, and the forty-retry loop asked the same wrong
+question forty times over twenty seconds.
+
+It needed a second condition to surface at all: the adapter tries `exports['qb-core']:GetPlayer`
+first and only falls through to the gated path when that export is missing, which it is on a stock
+qb-core.
+
+**Fix:** `Sport.callable(value)` - function, table or userdata - with the pcall around the call as
+the real guard, which is what it always was. Applied to both `try()` implementations and to the two
+ESX registration paths carrying the same gate.
+
+**Prevention:** Never ask `type(x) == 'function'` about a value that came from another resource. The
+question is "can I call this", and only calling it answers that. `tools/check.py` now fails on the
+pattern anywhere under `bridge/` or `server/`.
+
+**What should have caught it sooner:** the evidence was in the same boot log. `registered 4 usable
+items` printed on the server where the player lookup failed, because that path reaches its method
+through truthiness plus a pcall. Two code paths to one object disagreeing about whether it exists is
+a description of the bug, and it was already on screen.
+
+---
+
 ## [2026-08-06 14:05] — Trailing comma after every config section
 
 **Context:** First write of `config.lua`, nineteen sections of the form `Config.X = { ... }`.

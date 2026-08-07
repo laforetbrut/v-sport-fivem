@@ -199,11 +199,15 @@ local function registerQb(key, entry)
         A probe for "does this core have qb-core's shape" has to be able to answer no.
     ]]
     local ok, functions = pcall(function() return core.Functions end)
-    if not ok or type(functions) ~= 'table' or not functions.CreateUseableItem then
-        return false
-    end
+    if not ok or type(functions) ~= 'table' then return false end
 
-    local ok = pcall(functions.CreateUseableItem, entry.item, function(source_)
+    -- This path already worked, and that is the evidence that broke the qb-core stat bug open:
+    -- a truthiness test plus a pcall calls a proxied method quite happily. The player lookup
+    -- next door gated on type and failed on the same object, in the same boot.
+    local create = functions.CreateUseableItem
+    if not Sport.callable(create) then return false end
+
+    local ok = pcall(create, entry.item, function(source_)
         if Items.use(source_, key) and entry.consume ~= false then
             local player = Bridge.player(source_)
             if player and player.Functions and player.Functions.RemoveItem then
@@ -225,7 +229,11 @@ local function registerEsx(key, entry)
     -- script's new guard rather than by anybody reading the file - the same mistake twice, ten
     -- lines apart, with the reason written between them.
     local ok, register = pcall(function() return core.RegisterUsableItem end)
-    if not ok or type(register) ~= 'function' then return false end
+
+    -- Sport.callable, not a type test. ESX's method read off the shared object is a callable
+    -- table once it has crossed a resource boundary, and a type test here silently registered
+    -- no items at all - the same defect that stopped every stat loading on qb-core.
+    if not ok or not Sport.callable(register) then return false end
 
     return pcall(register, entry.item, function(source_)
         if Items.use(source_, key) and entry.consume ~= false then
