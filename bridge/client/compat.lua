@@ -373,32 +373,62 @@ end
 -- ---------------------------------------------------------------------------------------
 
 --[[
-    Play one of the game's own frontend sounds.
+    Every cue in Config.Minigame.sounds is a game sound, a sound file of the server's own, or both.
 
-    These come from audio banks the game already has loaded, so there is nothing to stream and
-    nothing to ship. `PlaySoundFrontend(-1, name, set, true)` is the whole thing.
+    A game sound is a GTA frontend sound and its soundset, `CHECKPOINT_PERFECT` in
+    `HUD_MINI_GAME_SOUNDSET`. The game already has the bank loaded, so there is nothing to stream
+    and nothing to ship: `PlaySoundFrontend` is the whole thing.
 
-    interact-sound is used instead when the operator configured it AND the resource is
-    running, for servers that route every cue through one place.
+    A file is an .ogg the server drops into a sound resource, interact-sound by default. This
+    resource has no NUI and will not grow one, so it cannot play a file itself; the sound resource
+    already does exactly that, through `InteractSound_CL:PlayOnOne(file, volume)`.
+
+    THE FILE ROUTE IS NARROW ON PURPOSE. An earlier version sent EVERY cue to interact-sound, game
+    sounds included. It plays files from its own folder and takes no soundset, so the game sounds
+    came out as silence, and because a fired event counted as success the native was never tried.
+    Now a cue goes there only when it names a file and only while the resource is running.
+    Otherwise it plays its game sound, so a missing resource costs the custom sound, never the cue.
 ]]
---[[
-    THE FRONTEND NATIVE, ALWAYS. The interact-sound route is gone, and it was silencing the resource.
 
-    Every cue in Config.Minigame.sounds is a GTA FRONTEND sound with a soundset -
-    `CHECKPOINT_PERFECT` in `HUD_MINI_GAME_SOUNDSET`. interact-sound plays FILES shipped inside its
-    own resource, and its event does not even take a soundset. So passing a frontend name to it
-    played nothing at all - and because the routing returned as soon as the event fired without
-    error, PlaySoundFrontend was never reached.
+--- The running resource that plays sound files, or nil.
+function Compat.soundFileResource()
+    local resource = Config.Compat.soundFiles
+    if type(resource) ~= 'string' or not started(resource) then return nil end
+    return resource
+end
 
-    The result was total silence for the whole minigame on any server with interact-sound installed,
-    which is most of them, presented as a feature: "for servers that route every cue through one
-    place". Routing is a reasonable idea and these are not the sounds to route.
-]]
-function Compat.playSound(name, set)
+--- How a cue plays right now: 'file', name, volume, resource / 'game', name, soundset / nil
+--- for silence. /vsportsound prints this, so it has to be the one decision playSound acts on.
+function Compat.soundRoute(cue)
+    if type(cue) ~= 'table' then return nil end
+
+    if type(cue.file) == 'string' and cue.file ~= '' then
+        local resource = Compat.soundFileResource()
+        if resource then
+            -- interact-sound appends .ogg itself; 'hit.ogg' would ask it for hit.ogg.ogg.
+            local file = cue.file:gsub('%.ogg$', '')
+            local volume = Sport.clamp(cue.volume or Config.Minigame.sounds.volume, 0.0, 1.0, 0.5)
+            return 'file', file, volume, resource
+        end
+    end
+
+    if type(cue.name) == 'string' and cue.name ~= '' then
+        return 'game', cue.name, type(cue.set) == 'string' and cue.set or ''
+    end
+
+    return nil
+end
+
+function Compat.playSound(cue)
     if not Config.Minigame.sounds.enabled then return end
-    if type(name) ~= 'string' or name == '' then return end
 
-    PlaySoundFrontend(-1, name, set or '', true)
+    local route, name, detail = Compat.soundRoute(cue)
+
+    if route == 'file' then
+        TriggerEvent('InteractSound_CL:PlayOnOne', name, detail)
+    elseif route == 'game' then
+        PlaySoundFrontend(-1, name, detail, true)
+    end
 end
 
 -- ---------------------------------------------------------------------------------------
@@ -424,6 +454,7 @@ function Compat.report()
         { 'Target', Compat.target() },
         { 'Notifications', Compat.notifyProvider() },
         { 'Progress bar', Compat.useOxProgress() and 'ox_lib' or 'native' },
+        { 'Sound files', Compat.soundFileResource() or 'off, game sounds only' },
         { 'Locale', Locale.current() },
         { 'Equipment', tostring(#Equipment.keys) .. ' types, ' ..
             tostring(Sport.count(Equipment.byModel)) .. ' models' },

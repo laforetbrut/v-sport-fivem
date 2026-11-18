@@ -85,6 +85,69 @@ if Config.Commands.dev and Config.Commands.dev ~= '' then
 end
 
 -- ---------------------------------------------------------------------------------------
+-- /vsportsound
+-- ---------------------------------------------------------------------------------------
+--
+-- Play the minigame cues without training, so changing one in config.lua is a restart and a
+-- listen, not a workout. No argument plays them all in order, a cue name plays that one. Each
+-- line in F8 says what was actually played - the file, or the game sound it fell back to.
+
+local SOUND_CUES = { 'perfect', 'good', 'miss', 'finish', 'fail' }
+
+local function describeCue(cue)
+    local route, name, detail, resource = Compat.soundRoute(cue)
+
+    if route == 'file' then
+        return ('file %s.ogg through %s, volume %.2f'):format(name, resource, detail)
+    end
+
+    local wanted = type(cue) == 'table' and type(cue.file) == 'string' and cue.file ~= ''
+    local note = wanted and ('  (file %s skipped: %s is not running)')
+        :format(cue.file, tostring(Config.Compat.soundFiles)) or ''
+
+    if route == 'game' then
+        return ('game %s / %s%s'):format(name, detail, note)
+    end
+
+    return 'silent' .. note
+end
+
+if Config.Commands.sound and Config.Commands.sound ~= '' then
+    RegisterCommand(Config.Commands.sound, function(_, args)
+        if not State.devGate() then return end
+
+        local sounds = Config.Minigame.sounds
+        local only = args[1] and args[1]:lower()
+
+        if only and not Sport.contains(SOUND_CUES, only) then
+            Compat.notify(L('cmd.sound_unknown', only, table.concat(SOUND_CUES, ', ')), 'error')
+            return
+        end
+
+        if not sounds.enabled then
+            Compat.notify(L('cmd.sound_off'), 'error')
+            return
+        end
+
+        print('^5============ v-sport sounds ============^7')
+
+        for _, key in ipairs(SOUND_CUES) do
+            if not only or key == only then
+                print(('  %-8s %s'):format(key, describeCue(sounds[key])))
+                Compat.playSound(sounds[key])
+                if not only then Wait(1500) end
+            end
+        end
+
+        print('^5========================================^7')
+    end, false)
+
+    TriggerEvent('chat:addSuggestion', '/' .. Config.Commands.sound, L('cmd.sound'), {
+        { name = 'cue', help = table.concat(SOUND_CUES, ' | ') },
+    })
+end
+
+-- ---------------------------------------------------------------------------------------
 -- /sportinfo
 -- ---------------------------------------------------------------------------------------
 

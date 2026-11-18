@@ -104,20 +104,14 @@ Config.Compat = {
     -- Off draws the resource's own native bar instead, which matches the rest of the HUD.
     useOxProgress = false,
 
-    --[[
-        `soundResource` USED TO BE HERE AND IS GONE, because it silenced the resource rather than
-        routing it.
-
-        The idea was to send the rep and completion cues through interact-sound for servers that
-        route all audio through one place. It cannot work for these cues: they are GTA FRONTEND
-        sounds with a soundset, and interact-sound plays files from its own resource and takes no
-        soundset. So the cues vanished, and because the routing counted a fired event as success the
-        native fallback was never reached. Any server with interact-sound installed had a silent
-        minigame.
-
-        Sounds now always go through PlaySoundFrontend. If you want them routed, the place to do it
-        is Config.Minigame.sounds - name your own cues there and change one function.
-    ]]
+    -- The resource that plays sound FILES, for the cues in Config.Minigame.sounds that name a
+    -- `file`. It has to answer interact-sound's `InteractSound_CL:PlayOnOne` event, which
+    -- interact-sound itself and its forks do. '' never uses one: every cue plays its game sound.
+    --
+    -- Only cues with a `file` go there, and only while this resource is running. A game sound
+    -- never does: an older `soundResource` sent them all, interact-sound cannot play a game
+    -- sound, and every minigame on the server went silent.
+    soundFiles = 'interact-sound',
 }
 
 -- ===========================================================================================
@@ -1182,14 +1176,34 @@ Config.Minigame = {
     -- press ending a long workout. 0 cancels on tap.
     cancelHold = 400,
 
-    -- Sounds, from the game's own audio banks. Set a name to '' to silence that cue.
+    --[[
+        SOUNDS. Each cue is a game sound, a sound file of your own, or both.
+
+          perfect, good, miss   the key presses of the minigame, judged
+          finish, fail          the end of a session, done or dropped
+
+        name / set   A GTA frontend sound and its soundset. Nothing to install.
+        file         An .ogg of your own: drop `gym_hit.ogg` into interact-sound's
+                     `client/html/sounds/` folder and write `file = 'gym_hit'`. It plays INSTEAD of
+                     the game sound while the resource in Config.Compat.soundFiles runs; keep
+                     name / set next to it and they are the fallback when it does not.
+        volume       0.0 to 1.0, for a file. Game sounds have no volume control.
+
+        `name = ''` with no file silences one cue, `enabled = false` silences them all.
+        After a restart, `/vsportsound` plays every cue in a row and `/vsportsound good` plays one,
+        no workout needed. CONFIG.md has a list of game sounds worth trying.
+    ]]
     sounds = {
         enabled = true,
+        volume = 0.5,       -- the volume of a `file` cue that does not set its own
         perfect = { name = 'CHECKPOINT_PERFECT', set = 'HUD_MINI_GAME_SOUNDSET' },
         good    = { name = 'CHECKPOINT_NORMAL',  set = 'HUD_MINI_GAME_SOUNDSET' },
         miss    = { name = 'CHECKPOINT_MISSED',  set = 'HUD_MINI_GAME_SOUNDSET' },
         finish  = { name = 'RACE_PLACED',        set = 'HUD_AWARDS' },
         fail    = { name = 'LOSER',              set = 'HUD_AWARDS' },
+
+        -- Your own file on the good hits, the game sound when interact-sound is not there:
+        -- good = { file = 'gym_hit', volume = 0.4, name = 'CHECKPOINT_NORMAL', set = 'HUD_MINI_GAME_SOUNDSET' },
     },
 }
 
@@ -1575,6 +1589,7 @@ Config.Commands = {
     goto_ = 'vsportgoto',           -- teleport to a machine, or list what is streamed in nearby
     find = 'vsportfind',            -- sweep the WHOLE MAP for one prop model and report where
     admin = 'vsportadmin',          -- set / add / reset another player's stats
+    sound = 'vsportsound',          -- play the minigame sounds, to hear a change without training
     dev = 'vsportdev',              -- re-ask the server whether you may use the tools above
 
     --[[
@@ -1618,7 +1633,7 @@ Config.Commands = {
     --[[
         WHICH COMMANDS ARE RESTRICTED, AND WHY IT MATTERS MORE THAN IT SOUNDS.
 
-        `info`, `scan`, `spot`, `offset`, `tune`, `goto_` and `find` are developer tools. Two of
+        `info`, `sound`, `scan`, `spot`, `offset`, `tune`, `goto_` and `find` are developer tools. Two of
         them TELEPORT the player - `goto_` across the map, `tune` into the sky - and `find` drives
         the player over the entire map for half an hour. Left open they are a free teleport sitting
         in every player's chat suggestions.

@@ -463,7 +463,7 @@ function Minigame.run(options)
                     end
 
                     judge(text, colour)
-                    if cue then Compat.playSound(cue.name, cue.set) end
+                    Compat.playSound(cue)
 
                     resolved = true
 
@@ -477,7 +477,7 @@ function Minigame.run(options)
                     streak = 1.0
 
                     judge(L('session.miss'), 'judgeMiss')
-                    if sounds.miss then Compat.playSound(sounds.miss.name, sounds.miss.set) end
+                    Compat.playSound(sounds.miss)
 
                     resolved = true
                 end
@@ -486,7 +486,7 @@ function Minigame.run(options)
             end
 
             if maxMisses > 0 and consecutiveMisses >= maxMisses then
-                if sounds.fail then Compat.playSound(sounds.fail.name, sounds.fail.set) end
+                Compat.playSound(sounds.fail)
                 return {
                     status = 'failed', quality = currentQuality(), reps = repsDone,
                     misses = misses, perfects = perfects,
@@ -535,7 +535,7 @@ function Minigame.run(options)
         end
     end
 
-    if sounds.finish then Compat.playSound(sounds.finish.name, sounds.finish.set) end
+    Compat.playSound(sounds.finish)
 
     return {
         status = 'complete',

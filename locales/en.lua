@@ -200,6 +200,9 @@ Locale.register('en', {
 
     ['cmd.dev']                 = 'Re-check whether you may use the developer tools',
     ['cmd.dev_granted']         = 'Developer tools unlocked',
+    ['cmd.sound']               = 'Play the training sounds, all of them or one',
+    ['cmd.sound_unknown']       = 'No sound called %s. Try one of: %s',
+    ['cmd.sound_off']           = 'Training sounds are switched off (Config.Minigame.sounds.enabled)',
     ['cmd.tune']                = 'Align an exercise against a prop, live',
     ['cmd.tune_usage']          = 'Usage: /%s <equipment key>',
 
