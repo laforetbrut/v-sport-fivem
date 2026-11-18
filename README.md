@@ -53,7 +53,7 @@ Everything below is detected at runtime and optional. Nothing is required.
 | Notifications | ox_lib, qb-core, ESX, okokNotify, or this resource's own native toast. |
 | Inventory (item gates, whey) | ox_inventory, qb-core, ESX. |
 | Storage | oxmysql, mysql-async, ghmattimysql. Without one, training works and nothing is saved - and it says so, once, in the console and to the player. |
-| Sounds | The game's own frontend banks, optionally routed through interact-sound. |
+| Sounds | The game's own frontend sounds, or your own `.ogg` files through interact-sound. Any cue can be changed, see [CONFIG.md](CONFIG.md#changing-the-training-sounds). |
 
 **What differs by framework.** ESX has no gang and no citizenid, so `gang:` keys in
 `Config.Decay.exemptJobs` never match and the character key is the identifier; the job grade

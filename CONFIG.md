@@ -20,6 +20,7 @@ when you want a particular outcome.
 - [The database](#the-database)
 - [Notifications and the interface](#notifications-and-the-interface)
 - [The minigame](#the-minigame)
+- [Changing the training sounds](#changing-the-training-sounds)
 - [Performance](#performance)
 - [Anti-cheat, honestly](#anti-cheat-honestly)
 - [Common recipes](#common-recipes)
@@ -483,6 +484,7 @@ another resource. Set any name to `''` and it is not registered at all.
 | `/vsport` | everyone | the stats panel |
 | `/vsportdev` | everyone | re-ask whether you may use the tools below |
 | `/vsportinfo` | admin | what was detected, and which framework was found |
+| `/vsportsound [cue]` | admin | play the training sounds, to hear a change without training |
 | `/vsportscan [radius]` | admin | every object nearby, and whether v-sport knows it |
 | `/vsportspot <exercise>` | admin | a `Config.Spots` line for where you stand |
 | `/vsportoffset` | admin | a `modelOverrides` offset for the prop you face |
@@ -630,6 +632,74 @@ characters - the box is drawn to fit.
 
 To make sessions easier without touching the timing, raise `Config.Minigame.goodScore` (how
 much a merely-good press is worth) or `Config.Minigame.maxMisses`.
+
+---
+
+## Changing the training sounds
+
+Every press in the minigame plays a cue: `perfect`, `good` or `miss`, then `finish` or `fail` when
+the session ends. They live in `Config.Minigame.sounds` (section 11), and each cue is a game sound,
+a file of your own, or both. After a restart, `/vsportsound` plays all five in a row and
+`/vsportsound good` plays one, so you hear a change without a workout.
+
+**A game sound** is a name and a soundset from GTA's own audio banks. Nothing to install.
+
+```lua
+good = { name = 'NAV_UP_DOWN', set = 'HUD_FRONTEND_DEFAULT_SOUNDSET' },
+```
+
+A few worth trying, all present in the game's sound list:
+
+| name | set |
+|---|---|
+| `SELECT` | `HUD_FRONTEND_DEFAULT_SOUNDSET` |
+| `NAV_UP_DOWN` | `HUD_FRONTEND_DEFAULT_SOUNDSET` |
+| `PICK_UP` | `HUD_FRONTEND_DEFAULT_SOUNDSET` |
+| `ERROR` | `HUD_FRONTEND_DEFAULT_SOUNDSET` |
+| `CONFIRM_BEEP` | `HUD_MINI_GAME_SOUNDSET` |
+| `TIMER_STOP` | `HUD_MINI_GAME_SOUNDSET` |
+| `MEDAL_UP` | `HUD_MINI_GAME_SOUNDSET` |
+| `Beep_Red` | `DLC_HEIST_HACKING_SNAKE_SOUNDS` |
+| `Hack_Success` | `DLC_HEIST_BIOLAB_PREP_HACKING_SOUNDS` |
+| `CHALLENGE_UNLOCKED` | `HUD_AWARDS` |
+| `Mission_Pass_Notify` | `DLC_HEISTS_GENERAL_FRONTEND_SOUNDS` |
+
+The full list is [soundNames.json](https://github.com/DurtyFree/gta-v-data-dumps/blob/master/soundNames.json)
+(`AudioName` is the name, `AudioRef` the set). A pair that does not exist is simply silent.
+
+**A file of your own** is an `.ogg` played through
+[interact-sound](https://github.com/qbcore-framework/interact-sound), which most servers already run.
+This resource has no NUI, so it hands files to the one that has.
+
+1. Put `gym_hit.ogg` in `interact-sound/client/html/sounds/`. If interact-sound's `fxmanifest.lua`
+   lists its sounds one by one instead of `client/html/sounds/*.ogg`, add yours to that list.
+2. Name it in the cue without the extension, and keep the game sound next to it as the fallback:
+
+   ```lua
+   good = { file = 'gym_hit', volume = 0.4, name = 'CHECKPOINT_NORMAL', set = 'HUD_MINI_GAME_SOUNDSET' },
+   ```
+
+3. Restart the server (or both resources, then reconnect) and run `/vsportsound good`.
+
+`volume` goes from 0.0 to 1.0. A file cue that sets none uses `Config.Minigame.sounds.volume`,
+0.5. Game sounds have no volume control.
+
+The file plays only while the resource named in `Config.Compat.soundFiles` (`'interact-sound'`)
+runs. When it does not, the cue plays its game sound, so a missing resource costs you the custom
+sound and never the cue. Another sound resource works too if it answers interact-sound's
+`InteractSound_CL:PlayOnOne(file, volume)` event: put its name there. `''` turns files off.
+
+**When a file plays nothing,** `/vsportsound` says in F8 what each cue really played.
+
+- *"skipped: interact-sound is not running"*: the resource is not started, or has another name.
+  Set `Config.Compat.soundFiles` to it.
+- *"file gym_hit.ogg through interact-sound"* and still silence: the file is not where
+  interact-sound looks (`client/html/sounds/gym_hit.ogg`, not listed in its manifest, or a typo),
+  or interact-sound is waiting for the player to load. QBCore's copy plays nothing until
+  `QBCore:Client:OnPlayerLoaded`, so it stays mute on another framework and after being restarted
+  in game until you reconnect. The original copy waits 15 seconds after it starts.
+
+To silence one cue, `name = ''` and no `file`. To silence them all, `enabled = false`.
 
 ---
 
@@ -962,6 +1032,45 @@ le tricheur touchent le même plafond.
 
 v-sport n'expulse et ne bannit jamais. Il émet `vsport:server:CheatSuspected` après cinq rejets
 dans l'heure, et votre anticheat décide.
+
+## Changer les sons de l'entraînement
+
+Chaque appui du mini-jeu joue un son : `perfect`, `good` ou `miss`, puis `finish` ou `fail` à la fin
+de la séance. Ils sont dans `Config.Minigame.sounds` (section 11), et chacun est un son du jeu, un
+fichier à vous, ou les deux. Après un redémarrage, `/vsportsound` les joue tous à la suite et
+`/vsportsound good` en joue un, pour entendre un changement sans faire de séance.
+
+**Un son du jeu** est un nom et un soundset des banques audio de GTA. Rien à installer. Le tableau
+de la section anglaise en propose une dizaine, tous présents dans la liste des sons du jeu.
+
+```lua
+good = { name = 'NAV_UP_DOWN', set = 'HUD_FRONTEND_DEFAULT_SOUNDSET' },
+```
+
+**Un fichier à vous** est un `.ogg` joué par interact-sound, que la plupart des serveurs ont déjà.
+
+1. Mettez `gym_hit.ogg` dans `interact-sound/client/html/sounds/`. Si le `fxmanifest.lua`
+   d'interact-sound liste ses sons un par un au lieu de `client/html/sounds/*.ogg`, ajoutez-y le vôtre.
+2. Nommez-le dans le son, sans l'extension, en gardant le son du jeu à côté comme repli :
+
+   ```lua
+   good = { file = 'gym_hit', volume = 0.4, name = 'CHECKPOINT_NORMAL', set = 'HUD_MINI_GAME_SOUNDSET' },
+   ```
+
+3. Redémarrez le serveur (ou les deux ressources, puis reconnectez-vous) et tapez `/vsportsound good`.
+
+`volume` va de 0.0 à 1.0 ; sans valeur, c'est `Config.Minigame.sounds.volume` (0.5). Le fichier
+n'est joué que si la ressource de `Config.Compat.soundFiles` (`'interact-sound'`) tourne ; sinon le
+son du jeu prend le relais. `''` coupe les fichiers.
+
+**Un fichier qui ne joue rien :** `/vsportsound` écrit dans F8 ce que chaque son a vraiment joué.
+« skipped: interact-sound is not running » : la ressource n'est pas lancée ou porte un autre nom
+(mettez-le dans `Config.Compat.soundFiles`). Fichier annoncé mais silence : mauvais dossier, faute
+de frappe ou fichier absent du manifest, ou interact-sound attend le chargement du joueur (la copie
+QBCore reste muette jusqu'à `QBCore:Client:OnPlayerLoaded`, donc sur un autre framework ou après
+l'avoir redémarrée en jeu, jusqu'à la reconnexion).
+
+Pour couper un son : `name = ''` et pas de `file`. Pour tous les couper : `enabled = false`.
 
 ## Recettes courantes
 
