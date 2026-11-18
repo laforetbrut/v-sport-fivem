@@ -261,11 +261,12 @@ If you are chasing frame time, the two knobs are `Config.Detection.interval` and
 
 ## Licence
 
-MIT with an attribution requirement. See [LICENSE](LICENSE). Use it, change it, sell it, ship
-it on a paid server - with one condition:
+[Apache License 2.0](LICENSE). Use it, change it, sell it, ship it on a paid server.
 
-**Leave the credit in.** The stats panel names its author. You may translate it and restyle it
-to match your server. You may not remove it, hide it, or replace the name.
+**Leave the credit in.** Attribution lives in [NOTICE](NOTICE). Section 4(d) of the licence asks a
+derivative work to carry that file and to show what it says where the work normally shows its
+notices. For this resource that place is the foot of the stats panel, where the author is already
+on screen. Translate it, restyle it, put your own credits beside it. Keep it there.
 
 ## Credits
 
@@ -478,12 +479,13 @@ les buffs expirés, un revérifie la perte toutes les quinze minutes.
 
 ## Licence
 
-MIT avec obligation d'attribution. Voir [LICENSE](LICENSE). Utilisez-le, modifiez-le,
-vendez-le, faites-le tourner sur un serveur payant, à une condition :
+[Licence Apache 2.0](LICENSE). Utilisez-le, modifiez-le, vendez-le, faites-le tourner sur un
+serveur payant.
 
-**Laissez le crédit.** Le panneau de statistiques nomme son auteur. Vous pouvez le traduire et
-l'habiller aux couleurs de votre serveur. Vous ne pouvez pas le supprimer, le masquer ni
-remplacer le nom.
+**Laissez le crédit.** L'attribution vit dans [NOTICE](NOTICE). L'article 4(d) de la licence demande
+qu'un travail dérivé transporte ce fichier et en affiche le contenu là où il montre normalement ses
+mentions. Pour cette ressource, c'est le bas du panneau de statistiques, où l'auteur est déjà à
+l'écran. Traduisez-le, habillez-le, ajoutez vos propres crédits à côté. Laissez-le en place.
 
 ## Credits
 

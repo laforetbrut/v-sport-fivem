@@ -1,0 +1,66 @@
+v-sport
+Copyright 2026 vyrriox
+
+This product includes software developed by vyrriox.
+
+Licensed under the Apache License, Version 2.0. You may obtain a copy of the
+License in the LICENSE file distributed with this software, or at
+https://www.apache.org/licenses/LICENSE-2.0
+
+
+ATTRIBUTION
+
+Section 4(d) of the License requires that the contents of this file be carried
+by any derivative work, and displayed wherever that work normally shows the
+notices of software it is built on.
+
+This software shows its authorship to the player at the foot of its own stats
+panel (/vsport), in the line "v-sport  ·  vyrriox".
+
+That display is where this notice normally appears. A derivative work is
+expected to keep it. You may translate the wording, restyle it to match your
+own theme, and add your own credits beside it.
+
+
+THIRD-PARTY MATERIAL
+
+None is redistributed. The props, animations and sounds of the game are
+referenced by their in-game names and are not included. The item icons in
+images/ were drawn for this project: the SVGs are the source and the PNGs are
+rendered from them by tools/icons.py.
+
+
+--------------------------------------------------------------------------
+Traduction de courtoisie. En cas de divergence, la version anglaise fait foi.
+
+
+v-sport
+Copyright 2026 vyrriox
+
+Ce produit comprend un logiciel developpe par vyrriox.
+
+Sous licence Apache, version 2.0. Vous pouvez obtenir une copie de la licence
+dans le fichier LICENSE distribue avec ce logiciel, ou a l'adresse
+https://www.apache.org/licenses/LICENSE-2.0
+
+
+ATTRIBUTION
+
+L'article 4(d) de la licence exige que le contenu de ce fichier accompagne
+tout travail derive, et soit affiche partout ou ce travail montre normalement
+les mentions des logiciels sur lesquels il repose.
+
+Ce logiciel montre son auteur au joueur en bas de son propre panneau de
+statistiques (/vsport), sur la ligne "v-sport  ·  vyrriox".
+
+Cet affichage est l'endroit ou cette mention apparait normalement. Un travail
+derive doit le conserver. Vous pouvez traduire le texte, l'habiller aux
+couleurs de votre theme et ajouter vos propres credits a cote.
+
+
+ELEMENTS DE TIERS
+
+Aucun n'est redistribue. Les props, animations et sons du jeu sont designes
+par leur nom dans le jeu et ne sont pas inclus. Les icones d'items de images/
+ont ete dessinees pour ce projet : les SVG sont la source, les PNG en sont
+rendus par tools/icons.py.

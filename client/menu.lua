@@ -295,7 +295,7 @@ local function draw(closeName)
     })
 
     -- The attribution the licence asks for. Translate it, recolour it, put your own credits
-    -- beside it - but see LICENSE before removing it.
+    -- beside it - but see NOTICE before removing it.
     UI.text('v-sport  ·  vyrriox', x, cursor - 0.009, {
         scale = 0.24, colour = 'textDim', align = 'centre',
     })
