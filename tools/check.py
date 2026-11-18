@@ -341,7 +341,7 @@ else:
 # client/custom.lua, which gates once for all three - so they are deliberately not listed here,
 # because the pattern below reads an inline Config.Commands.<key> and would not find them. Their
 # real protection is on the server: every one of those events re-checks Bridge.isAdmin.
-DEV_COMMANDS = ["info", "scan", "spot", "offset", "tune", "goto_", "find", "missing", "tour",
+DEV_COMMANDS = ["info", "sound", "scan", "spot", "offset", "tune", "goto_", "find", "missing", "tour",
                 "add", "remove", "custom"]
 
 ungated = []
