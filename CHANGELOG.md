@@ -7,6 +7,29 @@ uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.0.4] - 2026-11-18
+
+Pick your own training sounds. An old `config.lua` keeps working as it was.
+
+### Added
+
+- **Your own sound files for the training cues.** Any cue in `Config.Minigame.sounds` (`perfect`,
+  `good`, `miss`, `finish`, `fail`) can name an `.ogg` with `file = 'gym_hit'` and a `volume`,
+  played through interact-sound. The game sound next to it is the fallback while interact-sound is
+  not running, so a missing resource never silences a cue. `Config.Compat.soundFiles` names the
+  resource, `''` turns files off.
+- **`/vsportsound [cue]`** plays the cues without a workout and prints in F8 what each one really
+  played. Admin only, like the other tools.
+- `CONFIG.md` explains how to change the training sounds: game sounds worth trying, the file setup
+  step by step, and what to check when a file stays silent.
+
+### Changed
+
+- **Licence: Apache 2.0** instead of MIT with an attribution clause. The credit at the foot of the
+  stats panel stays, through the new `NOTICE` file.
+
+---
+
 ## [1.0.3] - 2026-08-07
 
 The leg press is switched off by default. That is the whole release.
@@ -362,6 +385,29 @@ First release.
 # Journal des modifications (Version Française)
 
 Toutes les modifications notables de v-sport. La plus récente en premier.
+
+---
+
+## [1.0.4] - 2026-11-18
+
+Choisissez vos propres sons d'entrainement. Un ancien `config.lua` marche toujours pareil.
+
+### Ajoute
+
+- **Vos propres fichiers son pour l'entrainement.** Chaque son de `Config.Minigame.sounds`
+  (`perfect`, `good`, `miss`, `finish`, `fail`) peut nommer un `.ogg` avec `file = 'gym_hit'` et un
+  `volume`, joue par interact-sound. Le son du jeu a cote sert de repli tant qu'interact-sound ne
+  tourne pas : une ressource absente ne coupe jamais un son. `Config.Compat.soundFiles` nomme la
+  ressource, `''` coupe les fichiers.
+- **`/vsportsound [son]`** joue les sons sans seance et ecrit dans F8 ce que chacun a vraiment joue.
+  Reserve aux admins, comme les autres outils.
+- `CONFIG.md` explique comment changer les sons : des sons du jeu a essayer, l'installation d'un
+  fichier pas a pas, et quoi verifier quand un fichier reste muet.
+
+### Modifie
+
+- **Licence : Apache 2.0** au lieu de MIT avec clause d'attribution. Le credit en bas du panneau de
+  stats reste, via le nouveau fichier `NOTICE`.
 
 ---
 
